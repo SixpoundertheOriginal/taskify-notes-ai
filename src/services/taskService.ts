@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Task, Subtask } from "@/lib/types";
 import { v4 as uuidv4 } from 'uuid';
@@ -111,6 +110,12 @@ export const saveTasksOrder = async (tasks: Task[]): Promise<boolean> => {
     // Map each task to its new position
     const taskUpdates = tasks.map((task, index) => ({
       id: task.id,
+      title: task.title,
+      description: task.description || null,
+      priority: task.priority,
+      status: task.status === 'in-progress' ? 'in_progress' : task.status,
+      completed: task.completed,
+      due_date: task.dueDate ? new Date(task.dueDate) : null,
       position: index
     }));
     

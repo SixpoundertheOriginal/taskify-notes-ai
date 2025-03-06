@@ -9,10 +9,11 @@ interface TaskPriorityGroupProps {
   title: string;
   tasks: Task[];
   priority: Priority;
-  icon: React.ReactNode;
+  icon?: React.ReactNode; // Make icon optional
+  droppableId: string;   // Add the missing droppableId prop
 }
 
-const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupProps) => {
+const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPriorityGroupProps) => {
   return (
     <div className="mb-8">
       <div className="flex items-center gap-2 mb-4">
@@ -22,7 +23,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
         <span className="text-muted-foreground ml-2">({tasks.length})</span>
       </div>
       
-      <Droppable droppableId={`priority-${priority}`}>
+      <Droppable droppableId={droppableId}>
         {(provided, snapshot) => (
           <div 
             className={`space-y-4 p-2 rounded-lg min-h-[80px] transition-colors ${

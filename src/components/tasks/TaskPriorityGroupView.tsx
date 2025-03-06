@@ -2,6 +2,7 @@
 import { DragDropContext, Droppable } from "react-beautiful-dnd";
 import TaskPriorityGroup from "./TaskPriorityGroup";
 import { useTaskPriorityDnd } from "@/hooks/use-task-priority-dnd";
+import { ArrowUp, ArrowRight, ArrowDown } from "lucide-react";
 
 const TaskPriorityGroupView = () => {
   const { 
@@ -22,6 +23,7 @@ const TaskPriorityGroupView = () => {
             priority="high"
             tasks={highPriorityTasks}
             droppableId="priority-high"
+            icon={<ArrowUp className="text-red-500" size={18} />}
           />
           
           <TaskPriorityGroup
@@ -29,6 +31,7 @@ const TaskPriorityGroupView = () => {
             priority="medium"
             tasks={mediumPriorityTasks}
             droppableId="priority-medium"
+            icon={<ArrowRight className="text-amber-500" size={18} />}
           />
           
           <TaskPriorityGroup
@@ -36,6 +39,7 @@ const TaskPriorityGroupView = () => {
             priority="low"
             tasks={lowPriorityTasks}
             droppableId="priority-low"
+            icon={<ArrowDown className="text-green-500" size={18} />}
           />
           
           {!hasTasks && (
