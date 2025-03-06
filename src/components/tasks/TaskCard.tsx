@@ -3,8 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar as CalendarIcon, Clock, Trash, Edit, XCircle, Save, ChevronDown, ChevronUp } from "lucide-react";
-import { Task, Priority } from "@/lib/types";
+import { Calendar as CalendarIcon, Clock, Trash, Edit, XCircle, Save, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
+import { Task, Priority, Status, Subtask } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
 import { formatDistanceToNow, format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,24 +22,36 @@ const priorityColors = {
   high: "bg-red-500/10 text-red-500 border-red-500/20",
 };
 
+const statusColors = {
+  "todo": "bg-slate-500/10 text-slate-500 border-slate-500/20",
+  "in-progress": "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+  "completed": "bg-green-500/10 text-green-500 border-green-500/20",
+};
+
 interface TaskCardProps {
   task: Task;
 }
 
 const TaskCard = ({ task }: TaskCardProps) => {
-  const { toggleTaskCompletion, updateTask, deleteTask } = useTaskStore();
+  const { toggleTaskCompletion, updateTask, deleteTask, addSubtask, toggleSubtaskCompletion, updateSubtask, deleteSubtask } = useTaskStore();
   const [isEditing, setIsEditing] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [editedDescription, setEditedDescription] = useState(task.description || "");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editedPriority, setEditedPriority] = useState<Priority>(task.priority);
+  const [editedStatus, setEditedStatus] = useState<Status>(task.status || "todo");
   const [editedDueDate, setEditedDueDate] = useState<Date | undefined>(
     task.dueDate ? new Date(task.dueDate) : undefined
   );
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState("");
   
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const subtaskInputRef = useRef<HTMLInputElement>(null);
+  const editSubtaskRef = useRef<HTMLInputElement>(null);
 
   // Handle click outside to save changes
   useEffect(() => {
@@ -56,6 +68,12 @@ const TaskCard = ({ task }: TaskCardProps) => {
         !descriptionRef.current.contains(event.target as Node)
       ) {
         saveField("description");
+      } else if (
+        editingSubtaskId && 
+        editSubtaskRef.current && 
+        !editSubtaskRef.current.contains(event.target as Node)
+      ) {
+        handleSaveSubtaskEdit();
       }
     };
 
@@ -63,7 +81,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [editingField, editedTitle, editedDescription]);
+  }, [editingField, editedTitle, editedDescription, editingSubtaskId, editingSubtaskTitle]);
 
   // Auto-focus the input when editing starts
   useEffect(() => {
@@ -71,14 +89,17 @@ const TaskCard = ({ task }: TaskCardProps) => {
       titleRef.current.focus();
     } else if (editingField === "description" && descriptionRef.current) {
       descriptionRef.current.focus();
+    } else if (editingSubtaskId && editSubtaskRef.current) {
+      editSubtaskRef.current.focus();
     }
-  }, [editingField]);
+  }, [editingField, editingSubtaskId]);
 
   const handleSaveEdit = () => {
     updateTask(task.id, {
       title: editedTitle,
       description: editedDescription,
       priority: editedPriority,
+      status: editedStatus,
       dueDate: editedDueDate?.toISOString(),
     });
     setIsEditing(false);
@@ -89,6 +110,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
     setEditedTitle(task.title);
     setEditedDescription(task.description || "");
     setEditedPriority(task.priority);
+    setEditedStatus(task.status || "todo");
     setEditedDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
     setIsEditing(false);
     setEditingField(null);
@@ -121,6 +143,13 @@ const TaskCard = ({ task }: TaskCardProps) => {
       updateData.description = editedDescription;
     } else if (field === "priority") {
       updateData.priority = editedPriority;
+    } else if (field === "status") {
+      updateData.status = editedStatus;
+      if (editedStatus === "completed") {
+        updateData.completed = true;
+      } else {
+        updateData.completed = false;
+      }
     } else if (field === "dueDate") {
       updateData.dueDate = editedDueDate?.toISOString();
     }
@@ -130,6 +159,38 @@ const TaskCard = ({ task }: TaskCardProps) => {
     }
     
     setEditingField(null);
+  };
+
+  const handleAddSubtask = (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (newSubtaskTitle.trim()) {
+      addSubtask(task.id, newSubtaskTitle.trim());
+      setNewSubtaskTitle("");
+      if (subtaskInputRef.current) {
+        subtaskInputRef.current.focus();
+      }
+    }
+  };
+
+  const startEditingSubtask = (subtask: Subtask, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSubtaskId(subtask.id);
+    setEditingSubtaskTitle(subtask.title);
+  };
+
+  const handleSaveSubtaskEdit = () => {
+    if (editingSubtaskId && editingSubtaskTitle.trim()) {
+      updateSubtask(task.id, editingSubtaskId, editingSubtaskTitle);
+    }
+    setEditingSubtaskId(null);
+    setEditingSubtaskTitle("");
+  };
+
+  const handleDeleteSubtask = (subtaskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteSubtask(task.id, subtaskId);
   };
 
   return (
@@ -265,6 +326,40 @@ const TaskCard = ({ task }: TaskCardProps) => {
                   </Badge>
                 )}
                 
+                {editingField === "status" ? (
+                  <Select
+                    value={editedStatus}
+                    onValueChange={(value: string) => {
+                      setEditedStatus(value as Status);
+                      // Auto-save when status is changed
+                      setTimeout(() => saveField("status"), 100);
+                    }}
+                    onOpenChange={(open) => {
+                      if (!open && editingField === "status") {
+                        saveField("status");
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[120px] h-7 text-xs">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todo">To-Do</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge 
+                    className={`${statusColors[task.status || 'todo']} cursor-pointer`}
+                    onClick={(e) => !task.completed && startEditing("status", e)}
+                  >
+                    {task.status === "todo" ? "To-Do" : 
+                     task.status === "in-progress" ? "In Progress" : 
+                     "Completed"}
+                  </Badge>
+                )}
+                
                 {editingField === "dueDate" ? (
                   <Popover>
                     <PopoverTrigger asChild>
@@ -334,6 +429,98 @@ const TaskCard = ({ task }: TaskCardProps) => {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
             >
+              {/* Subtasks section */}
+              <div className="px-6 pb-4" onClick={(e) => e.stopPropagation()}>
+                <h4 className="text-sm font-medium mb-2">Subtasks</h4>
+                
+                <div className="space-y-2">
+                  {task.subtasks && task.subtasks.length > 0 ? (
+                    <ul className="space-y-2">
+                      {task.subtasks.map((subtask) => (
+                        <li key={subtask.id} className="flex items-start gap-2">
+                          <Checkbox
+                            id={`subtask-${subtask.id}`}
+                            checked={subtask.completed}
+                            onCheckedChange={() => toggleSubtaskCompletion(task.id, subtask.id)}
+                            className="mt-1"
+                          />
+                          
+                          {editingSubtaskId === subtask.id ? (
+                            <div className="flex-1 flex items-center gap-1">
+                              <Input
+                                ref={editSubtaskRef}
+                                value={editingSubtaskTitle}
+                                onChange={(e) => setEditingSubtaskTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleSaveSubtaskEdit();
+                                  if (e.key === "Escape") {
+                                    setEditingSubtaskId(null);
+                                    setEditingSubtaskTitle("");
+                                  }
+                                }}
+                                className="flex-1 h-7 text-sm"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSaveSubtaskEdit();
+                                }}
+                              >
+                                <Save className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex-1 flex items-start justify-between">
+                              <span 
+                                className={`text-sm ${subtask.completed ? "line-through text-muted-foreground" : ""}`}
+                                onClick={(e) => !subtask.completed && startEditingSubtask(subtask, e)}
+                              >
+                                {subtask.title}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 ml-2"
+                                onClick={(e) => handleDeleteSubtask(subtask.id, e)}
+                              >
+                                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">No subtasks yet</p>
+                  )}
+                  
+                  <form onSubmit={handleAddSubtask} className="flex gap-2 mt-3">
+                    <Input
+                      ref={subtaskInputRef}
+                      value={newSubtaskTitle}
+                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                      placeholder="Add a new subtask"
+                      className="flex-1 h-8 text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Button 
+                      type="submit" 
+                      variant="outline" 
+                      size="sm"
+                      className="h-8"
+                      disabled={!newSubtaskTitle.trim()}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Add
+                    </Button>
+                  </form>
+                </div>
+              </div>
+
               <CardFooter className="p-4 pt-0 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                 <Button
                   variant="outline"

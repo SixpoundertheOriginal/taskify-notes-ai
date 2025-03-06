@@ -1,5 +1,12 @@
 
 export type Priority = "low" | "medium" | "high";
+export type Status = "todo" | "in-progress" | "completed";
+
+export interface Subtask {
+  id: string;
+  title: string;
+  completed: boolean;
+}
 
 export interface Task {
   id: string;
@@ -7,8 +14,10 @@ export interface Task {
   description?: string;
   completed: boolean;
   priority: Priority;
+  status: Status;
   dueDate?: string;
   createdAt: string;
+  subtasks?: Subtask[];
 }
 
 export interface Note {
