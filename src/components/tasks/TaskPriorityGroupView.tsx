@@ -1,4 +1,3 @@
-
 import { useTaskStore } from "@/lib/store";
 import { Priority, Task } from "@/lib/types";
 import { PriorityBadge, priorityColors } from "./TaskBadges";
@@ -72,7 +71,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
 };
 
 const TaskPriorityGroupView = () => {
-  const { tasks, updateTaskPriority } = useTaskStore();
+  const { tasks, updateTaskPriority, reorderTasks } = useTaskStore();
   
   // Group tasks by priority
   const highPriorityTasks = tasks.filter(task => task.priority === "high");
@@ -110,34 +109,44 @@ const TaskPriorityGroupView = () => {
       'low-priority': 'low'
     };
 
-    // Get the task that was dragged
-    let taskToMove: Task | undefined;
-    
-    if (source.droppableId === 'high-priority') {
-      taskToMove = highPriorityTasks[source.index];
-    } else if (source.droppableId === 'medium-priority') {
-      taskToMove = mediumPriorityTasks[source.index];
-    } else if (source.droppableId === 'low-priority') {
-      taskToMove = lowPriorityTasks[source.index];
+    // Get source and destination task lists
+    const getTaskList = (droppableId: string): Task[] => {
+      switch (droppableId) {
+        case 'high-priority':
+          return highPriorityTasks;
+        case 'medium-priority':
+          return mediumPriorityTasks;
+        case 'low-priority':
+          return lowPriorityTasks;
+        default:
+          return [];
+      }
+    };
+
+    const sourceList = getTaskList(source.droppableId);
+    const taskToMove = sourceList[source.index];
+
+    if (!taskToMove) {
+      console.error("Task not found:", source);
+      return;
     }
 
-    if (taskToMove) {
-      console.log("Task to move:", taskToMove);
-      
-      // If moved to a different priority group, update its priority
-      if (source.droppableId !== destination.droppableId) {
-        const newPriority = priorityMap[destination.droppableId];
-        updateTaskPriority(taskToMove.id, newPriority);
-        
-        toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
-        console.log(`Priority updated to ${newPriority}`);
-      } else {
-        // If staying in same priority group but changing position,
-        // show a simple reordering message
-        toast.success(`"${taskToMove.title}" reordered successfully`);
+    // If moving between priority groups
+    if (source.droppableId !== destination.droppableId) {
+      const newPriority = priorityMap[destination.droppableId];
+      if (!newPriority) {
+        console.error("Invalid priority:", destination.droppableId);
+        return;
       }
+
+      updateTaskPriority(taskToMove.id, newPriority);
+      toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
+      console.log(`Priority updated to ${newPriority}`);
     } else {
-      console.error("Task not found:", source);
+      // Reordering within the same priority group
+      const currentList = getTaskList(source.droppableId);
+      reorderTasks(source.index, destination.index, currentList);
+      toast.success(`"${taskToMove.title}" reordered successfully`);
     }
   };
 

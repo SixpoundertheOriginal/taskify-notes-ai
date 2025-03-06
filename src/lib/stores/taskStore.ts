@@ -118,7 +118,7 @@ export const useTaskStore = create<TaskState>((set) => ({
     ),
   })),
 
-  reorderTasks: (sourceIndex, destinationIndex, filteredTasks) => set((state) => {
+  reorderTasks: (sourceIndex: number, destinationIndex: number, filteredTasks: Task[]) => set((state) => {
     if (
       sourceIndex < 0 || 
       destinationIndex < 0 || 
