@@ -15,7 +15,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      parse_task_details: {
+        Args: {
+          task_text: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
