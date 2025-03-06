@@ -6,6 +6,7 @@ import TaskCard from "./TaskCard";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, ArrowDown, CircleDot } from "lucide-react";
 import TaskEmptyState from "./TaskEmptyState";
+import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
 
 interface TaskPriorityGroupProps {
   title: string;
@@ -15,7 +16,36 @@ interface TaskPriorityGroupProps {
 }
 
 const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupProps) => {
+  const { reorderTasksInPriorityGroup } = useTaskStore();
+
   if (tasks.length === 0) return null;
+
+  const handleDragEnd = (result: DropResult) => {
+    const { destination, source } = result;
+    
+    // If there's no destination or the item was dropped in the same position
+    if (!destination || 
+        (destination.droppableId === source.droppableId && 
+         destination.index === source.index)) {
+      return;
+    }
+    
+    // Get all task IDs in their current order for this priority group
+    const reorderedIds = tasks.map(task => task.id);
+    
+    // Move the dragged task ID from its source to destination position
+    const [movedTaskId] = reorderedIds.splice(source.index, 1);
+    reorderedIds.splice(destination.index, 0, movedTaskId);
+    
+    // Update the store with new order
+    reorderTasksInPriorityGroup(
+      movedTaskId,
+      priority,
+      source.index,
+      destination.index,
+      reorderedIds
+    );
+  };
 
   return (
     <div className="mb-8">
@@ -26,15 +56,42 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
         <span className="text-muted-foreground ml-2">({tasks.length})</span>
       </div>
       
-      <div className="space-y-4 p-2 rounded-lg min-h-[80px]">
-        <AnimatePresence mode="sync">
-          {tasks.map((task) => (
-            <div key={task.id} className="mb-4">
-              <TaskCard key={task.id} task={task} />
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId={`priority-${priority}`}>
+          {(provided, snapshot) => (
+            <div 
+              className={`space-y-4 p-2 rounded-lg min-h-[80px] ${
+                snapshot.isDraggingOver ? "bg-accent/20" : ""
+              }`}
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+            >
+              <AnimatePresence mode="sync">
+                {tasks.map((task, index) => (
+                  <Draggable key={task.id} draggableId={task.id} index={index}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        className={`mb-4 ${
+                          snapshot.isDragging ? "opacity-80" : ""
+                        }`}
+                        style={{
+                          ...provided.draggableProps.style,
+                        }}
+                      >
+                        <TaskCard key={task.id} task={task} />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+              </AnimatePresence>
+              {provided.placeholder}
             </div>
-          ))}
-        </AnimatePresence>
-      </div>
+          )}
+        </Droppable>
+      </DragDropContext>
     </div>
   );
 };
