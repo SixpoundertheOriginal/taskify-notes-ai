@@ -4,7 +4,8 @@ import TaskCard from "./TaskCard";
 import TaskEmptyState from "./TaskEmptyState";
 import { useTaskStore } from "@/lib/store";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { toast } from "sonner";
 
 interface TaskListContainerProps {
   filteredTasks: Task[];
@@ -13,95 +14,87 @@ interface TaskListContainerProps {
 
 const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainerProps) => {
   const { tasks: allTasks, reorderTasks } = useTaskStore();
+  
+  const [localFilteredTasks, setLocalFilteredTasks] = useState<Task[]>(filteredTasks);
+  
+  useEffect(() => {
+    setLocalFilteredTasks(filteredTasks);
+  }, [filteredTasks]);
 
   const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source, draggableId } = result;
     
-    // If there's no destination or the item was dropped in the same position
     if (!destination || 
         (destination.droppableId === source.droppableId && 
          destination.index === source.index)) {
       return;
     }
     
-    // Create a mapping between filtered task IDs and their position in the full list
-    const taskIdToFullListIndex = new Map();
-    allTasks.forEach((task, index) => {
-      taskIdToFullListIndex.set(task.id, index);
-    });
-    
-    // Get the task IDs from the filtered tasks
-    const filteredTaskIds = filteredTasks.map(task => task.id);
-    
-    // Create a new array with the correct order in the filtered view
-    const newFilteredTaskIds = [...filteredTaskIds];
-    newFilteredTaskIds.splice(source.index, 1);
-    newFilteredTaskIds.splice(destination.index, 0, draggableId);
-    
-    // Generate the complete reordered list with all tasks (including non-filtered ones)
-    // First, create a set of filtered IDs for quick lookups
-    const filteredIdsSet = new Set(filteredTaskIds);
-    
-    // Start with an array of all task IDs in their current order
-    const allTaskIds = allTasks.map(task => task.id);
-    
-    // Create a new ordered array for the complete task list
-    const reorderedCompleteList = [];
-    
-    // Track which filtered tasks have been processed
-    const processedFilteredIds = new Set();
-    
-    // Go through all tasks and rebuild the order
-    for (const taskId of allTaskIds) {
-      // If this task is in the filtered list, we'll handle it differently
-      if (filteredIdsSet.has(taskId)) {
-        // Skip for now - we'll add filtered tasks in their new order later
-        continue;
-      } else {
-        // This task was not in the filtered view, keep its position
-        reorderedCompleteList.push(taskId);
-      }
-    }
-    
-    // Now insert all filtered tasks in their new order
-    for (const filteredId of newFilteredTaskIds) {
-      // Find the original position of this task
-      const originalIndex = taskIdToFullListIndex.get(filteredId);
+    try {
+      const newLocalFilteredTasks = [...localFilteredTasks];
       
-      // Find the right insertion point in the complete list
-      // This ensures filtered tasks maintain relative positions with non-filtered tasks
-      let insertionIndex = 0;
+      const [removedTask] = newLocalFilteredTasks.splice(source.index, 1);
       
-      // If there's a task before this in the filtered view, try to position after it
-      const filteredIndex = newFilteredTaskIds.indexOf(filteredId);
-      if (filteredIndex > 0) {
-        const previousFilteredId = newFilteredTaskIds[filteredIndex - 1];
-        const previousIndex = reorderedCompleteList.indexOf(previousFilteredId);
-        if (previousIndex !== -1) {
-          insertionIndex = previousIndex + 1;
+      newLocalFilteredTasks.splice(destination.index, 0, removedTask);
+      
+      setLocalFilteredTasks(newLocalFilteredTasks);
+      
+      const taskIdToFullListIndex = new Map();
+      allTasks.forEach((task, index) => {
+        taskIdToFullListIndex.set(task.id, index);
+      });
+      
+      const filteredTaskIds = newLocalFilteredTasks.map(task => task.id);
+      
+      const filteredIdsSet = new Set(filteredTaskIds);
+      
+      const allTaskIds = allTasks.map(task => task.id);
+      
+      const reorderedCompleteList = [];
+      
+      for (const taskId of allTaskIds) {
+        if (filteredIdsSet.has(taskId)) {
+          continue;
+        } else {
+          reorderedCompleteList.push(taskId);
         }
-      } else {
-        // This is the first filtered task, find where to insert it
-        // Try to maintain its general position in the list
-        insertionIndex = Math.min(originalIndex, reorderedCompleteList.length);
       }
       
-      // Insert the task at the calculated position
-      reorderedCompleteList.splice(insertionIndex, 0, filteredId);
+      for (const filteredId of filteredTaskIds) {
+        const originalIndex = taskIdToFullListIndex.get(filteredId);
+        
+        let insertionIndex = 0;
+        
+        const filteredIndex = filteredTaskIds.indexOf(filteredId);
+        if (filteredIndex > 0) {
+          const previousFilteredId = filteredTaskIds[filteredIndex - 1];
+          const previousIndex = reorderedCompleteList.indexOf(previousFilteredId);
+          if (previousIndex !== -1) {
+            insertionIndex = previousIndex + 1;
+          }
+        } else {
+          insertionIndex = Math.min(originalIndex, reorderedCompleteList.length);
+        }
+        
+        reorderedCompleteList.splice(insertionIndex, 0, filteredId);
+      }
+      
+      reorderTasks(
+        draggableId,
+        source.index,
+        destination.index,
+        reorderedCompleteList
+      );
+    } catch (error) {
+      console.error("Error during drag and drop:", error);
+      setLocalFilteredTasks(filteredTasks);
+      toast.error("Failed to update task position. Please try again.");
     }
-    
-    // Update the store with the new order that contains all tasks
-    reorderTasks(
-      draggableId,
-      source.index,
-      destination.index,
-      reorderedCompleteList
-    );
-  }, [filteredTasks, allTasks, reorderTasks]);
+  }, [localFilteredTasks, filteredTasks, allTasks, reorderTasks]);
 
   return (
     <div className="space-y-4">
-      {filteredTasks.length > 0 ? (
+      {localFilteredTasks.length > 0 ? (
         <DragDropContext onDragEnd={handleDragEnd}>
           <Droppable droppableId="tasks-list">
             {(provided, snapshot) => (
@@ -113,7 +106,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                 {...provided.droppableProps}
               >
                 <AnimatePresence mode="sync">
-                  {filteredTasks.map((task, index) => (
+                  {localFilteredTasks.map((task, index) => (
                     <Draggable key={task.id} draggableId={task.id} index={index}>
                       {(provided, snapshot) => (
                         <div

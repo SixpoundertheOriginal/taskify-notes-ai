@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, ArrowDown, CircleDot } from "lucide-react";
 import TaskEmptyState from "./TaskEmptyState";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import { toast } from "sonner";
 
 interface TaskPriorityGroupProps {
   title: string;
@@ -70,20 +71,35 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, onDragEnd }: TaskPrio
 const TaskPriorityGroupView = () => {
   const { tasks, reorderTasksInPriorityGroup, moveTaskBetweenLists } = useTaskStore();
   
-  // Group tasks by priority
-  const highPriorityTasks = tasks.filter(task => task.priority === "high");
-  const mediumPriorityTasks = tasks.filter(task => task.priority === "medium");
-  const lowPriorityTasks = tasks.filter(task => task.priority === "low");
+  // Add local state to track optimistic UI updates
+  const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
+  
+  // Group tasks by priority - now using localTasks for rendering
+  const highPriorityTasks = localTasks.filter(task => task.priority === "high");
+  const mediumPriorityTasks = localTasks.filter(task => task.priority === "medium");
+  const lowPriorityTasks = localTasks.filter(task => task.priority === "low");
+  
+  // Update local tasks when store tasks change
+  // This effect ensures our local state is up-to-date with the store
+  // outside of drag/drop operations
+  useCallback(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
   
   // Check if there are any tasks
-  const hasTasks = tasks.length > 0;
+  const hasTasks = localTasks.length > 0;
 
-  // Handle drag and drop operations
+  // Handle drag and drop operations with optimistic updates
   const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source, draggableId } = result;
     
-    // If there's no destination or the item was dropped in the same position within the same list
+    // If there's no destination, return
     if (!destination) {
+      return;
+    }
+    
+    // If dropping in the same position, do nothing
+    if (source.droppableId === destination.droppableId && source.index === destination.index) {
       return;
     }
     
@@ -91,43 +107,93 @@ const TaskPriorityGroupView = () => {
     const sourcePriorityString = source.droppableId.split('-')[1] as Priority;
     const destPriorityString = destination.droppableId.split('-')[1] as Priority;
     
-    // If dropping in the same list and same position, do nothing
-    if (source.droppableId === destination.droppableId && source.index === destination.index) {
+    // Find the task being dragged
+    const draggedTask = localTasks.find(task => task.id === draggableId);
+    if (!draggedTask) {
+      console.error("Could not find task with ID:", draggableId);
       return;
     }
     
-    // If moving within the same priority group, use the existing reordering logic
-    if (sourcePriorityString === destPriorityString) {
-      // Get all tasks in this priority group
-      const tasksInPriority = tasks.filter(task => task.priority === sourcePriorityString);
+    // Create a deep copy of current tasks for optimistic update
+    const newLocalTasks = [...localTasks];
+    
+    try {
+      // Apply optimistic update to local state first
+      if (sourcePriorityString === destPriorityString) {
+        // Same priority group - reordering within the group
+        
+        // Get tasks in this priority group
+        const tasksInPriority = newLocalTasks.filter(task => 
+          task.priority === sourcePriorityString
+        );
+        
+        // Create new order for the priority group
+        const updatedTasksInPriority = [...tasksInPriority];
+        
+        // Remove the task from its current position
+        const [removedTask] = updatedTasksInPriority.splice(source.index, 1);
+        
+        // Insert the task at its new position
+        updatedTasksInPriority.splice(destination.index, 0, removedTask);
+        
+        // Update all tasks with the new priority group order
+        const updatedTasks = newLocalTasks.map(task => {
+          if (task.priority === sourcePriorityString) {
+            // Replace all tasks in this priority with the reordered ones
+            const indexInPriorityGroup = updatedTasksInPriority.findIndex(t => t.id === task.id);
+            if (indexInPriorityGroup !== -1) {
+              return updatedTasksInPriority[indexInPriorityGroup];
+            }
+          }
+          return task;
+        });
+        
+        // Update local state immediately
+        setLocalTasks(updatedTasks);
+        
+        // Create the list of task IDs in the new order
+        const newTaskIds = updatedTasksInPriority.map(task => task.id);
+        
+        // Update the store (in background)
+        reorderTasksInPriorityGroup(
+          draggableId,
+          sourcePriorityString,
+          source.index,
+          destination.index,
+          newTaskIds
+        );
+      } else {
+        // Moving between different priority groups
+        
+        // Create a new version of the task with updated priority
+        const updatedTask = { ...draggedTask, priority: destPriorityString };
+        
+        // Create new local tasks array for the update
+        const updatedTasks = newLocalTasks.map(task => 
+          task.id === draggableId ? updatedTask : task
+        );
+        
+        // Update local state immediately
+        setLocalTasks(updatedTasks);
+        
+        // Update the store (in background)
+        moveTaskBetweenLists(
+          draggableId,
+          sourcePriorityString,
+          destPriorityString,
+          source.index,
+          destination.index
+        );
+      }
+    } catch (error) {
+      // If an error occurs, revert to the previous state
+      console.error("Error during drag and drop:", error);
+      setLocalTasks(tasks); // Revert to the store state
       
-      // Create a list of all task IDs in this priority
-      const allTaskIdsInPriority = tasksInPriority.map(task => task.id);
-      
-      // Create the new order by moving the dragged task
-      const newTaskIds = [...allTaskIdsInPriority];
-      newTaskIds.splice(source.index, 1);
-      newTaskIds.splice(destination.index, 0, draggableId);
-      
-      // Call the store's reordering function
-      reorderTasksInPriorityGroup(
-        draggableId,
-        sourcePriorityString,
-        source.index,
-        destination.index,
-        newTaskIds
-      );
-    } else {
-      // Moving between different priority groups
-      moveTaskBetweenLists(
-        draggableId,
-        sourcePriorityString,
-        destPriorityString,
-        source.index,
-        destination.index
-      );
+      // Show error notification
+      toast.error("Failed to update task position. Please try again.");
     }
-  }, [tasks, reorderTasksInPriorityGroup, moveTaskBetweenLists]);
+  }, [localTasks, tasks, reorderTasksInPriorityGroup, moveTaskBetweenLists]);
 
   // If no tasks, show empty state
   if (!hasTasks) {
