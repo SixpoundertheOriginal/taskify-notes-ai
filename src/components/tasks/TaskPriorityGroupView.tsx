@@ -1,23 +1,20 @@
 
 import { useTaskStore } from "@/lib/store";
 import { Priority, Task } from "@/lib/types";
-import { PriorityBadge, priorityColors } from "./TaskBadges";
+import { PriorityBadge } from "./TaskBadges";
 import TaskCard from "./TaskCard";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, ArrowDown, CircleDot, GripVertical } from "lucide-react";
+import { AlertCircle, ArrowDown, CircleDot } from "lucide-react";
 import TaskEmptyState from "./TaskEmptyState";
-import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { toast } from "sonner";
 
 interface TaskPriorityGroupProps {
   title: string;
   tasks: Task[];
   priority: Priority;
   icon: React.ReactNode;
-  droppableId: string;
 }
 
-const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPriorityGroupProps) => {
+const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupProps) => {
   if (tasks.length === 0) return null;
 
   return (
@@ -29,50 +26,21 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
         <span className="text-muted-foreground ml-2">({tasks.length})</span>
       </div>
       
-      <Droppable droppableId={droppableId} type="TASK">
-        {(provided, snapshot) => (
-          <div 
-            className={`space-y-4 p-2 rounded-lg transition-colors min-h-[80px] ${
-              snapshot.isDraggingOver ? 'bg-accent/30 border border-dashed border-primary/30' : ''
-            }`}
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-          >
-            <AnimatePresence mode="sync">
-              {tasks.map((task, index) => (
-                <Draggable key={task.id} draggableId={task.id} index={index}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      className={`transition-all mb-4 ${snapshot.isDragging ? "opacity-80 scale-105 z-50" : ""}`}
-                    >
-                      <div className="flex items-start">
-                        <div 
-                          {...provided.dragHandleProps}
-                          className="mt-6 mr-2 p-1 rounded hover:bg-accent cursor-grab active:cursor-grabbing"
-                        >
-                          <GripVertical className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1">
-                          <TaskCard key={task.id} task={task} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-            </AnimatePresence>
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      <div className="space-y-4 p-2 rounded-lg min-h-[80px]">
+        <AnimatePresence mode="sync">
+          {tasks.map((task) => (
+            <div key={task.id} className="mb-4">
+              <TaskCard key={task.id} task={task} />
+            </div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
 
 const TaskPriorityGroupView = () => {
-  const { tasks, updateTaskPriority, reorderTasksInPriorityGroup } = useTaskStore();
+  const { tasks } = useTaskStore();
   
   // Group tasks by priority
   const highPriorityTasks = tasks.filter(task => task.priority === "high");
@@ -81,130 +49,6 @@ const TaskPriorityGroupView = () => {
   
   // Check if there are any tasks
   const hasTasks = tasks.length > 0;
-
-  const handleDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
-    
-    // Log drag operation for debugging
-    console.log("Drag operation result:", result);
-    
-    // Dropped outside the list
-    if (!destination) {
-      console.log("No destination");
-      return;
-    }
-    
-    // Same position
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    ) {
-      console.log("Same position, no change needed");
-      return;
-    }
-
-    // Map droppableId to priority
-    const priorityMap: Record<string, Priority> = {
-      'high-priority': 'high',
-      'medium-priority': 'medium',
-      'low-priority': 'low'
-    };
-
-    // Get the source and destination task lists
-    let sourceTaskList: Task[] = [];
-    
-    if (source.droppableId === 'high-priority') {
-      sourceTaskList = [...highPriorityTasks];
-    } else if (source.droppableId === 'medium-priority') {
-      sourceTaskList = [...mediumPriorityTasks];
-    } else if (source.droppableId === 'low-priority') {
-      sourceTaskList = [...lowPriorityTasks];
-    }
-    
-    // Get the task that was dragged
-    const taskToMove = sourceTaskList[source.index];
-    
-    if (!taskToMove) {
-      console.error("Task not found:", source);
-      return;
-    }
-    
-    console.log("Task to move:", taskToMove);
-    
-    // If moved to a different priority group, update its priority
-    if (source.droppableId !== destination.droppableId) {
-      const newPriority = priorityMap[destination.droppableId];
-      
-      // Get destination task list
-      let destTaskList: Task[] = [];
-      if (destination.droppableId === 'high-priority') {
-        destTaskList = [...highPriorityTasks];
-      } else if (destination.droppableId === 'medium-priority') {
-        destTaskList = [...mediumPriorityTasks];
-      } else if (destination.droppableId === 'low-priority') {
-        destTaskList = [...lowPriorityTasks];
-      }
-      
-      // Create a copy of the task with the new priority
-      const taskWithNewPriority = {
-        ...taskToMove,
-        priority: newPriority
-      };
-      
-      // Create a new destination list with the task inserted
-      const newDestList = [...destTaskList];
-      newDestList.splice(destination.index, 0, taskWithNewPriority);
-      
-      // Get IDs in the new order
-      const reorderedIds = newDestList.map(t => t.id);
-      
-      console.log("Moving task to new priority group:", {
-        task: taskToMove.title,
-        fromPriority: taskToMove.priority,
-        toPriority: newPriority,
-        destinationIndex: destination.index,
-        newOrder: newDestList.map(t => t.title)
-      });
-      
-      // Update task priority and position
-      updateTaskPriority(
-        taskToMove.id, 
-        newPriority, 
-        destination.index,
-        reorderedIds
-      );
-      
-      toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
-    } else {
-      // Same priority group, just reordering
-      // Create a new array with the reordered items
-      const reorderedTasks = [...sourceTaskList];
-      const [removed] = reorderedTasks.splice(source.index, 1);
-      reorderedTasks.splice(destination.index, 0, removed);
-      
-      // Get the reordered IDs
-      const reorderedIds = reorderedTasks.map(task => task.id);
-      
-      console.log("Reordering within same priority group:", {
-        task: taskToMove.title,
-        priority: taskToMove.priority,
-        sourceIndex: source.index,
-        destinationIndex: destination.index,
-        newOrder: reorderedTasks.map(t => t.title)
-      });
-      
-      // Update task position in the store
-      reorderTasksInPriorityGroup(
-        taskToMove.id,
-        taskToMove.priority,
-        source.index,
-        destination.index,
-        reorderedIds
-      );
-      
-      toast.success(`"${taskToMove.title}" reordered successfully`);
-    }
-  };
 
   // If no tasks, show empty state
   if (!hasTasks) {
@@ -218,31 +62,26 @@ const TaskPriorityGroupView = () => {
       transition={{ duration: 0.3 }}
       className="space-y-8"
     >
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <TaskPriorityGroup
-          title="High Priority"
-          tasks={highPriorityTasks}
-          priority="high"
-          droppableId="high-priority"
-          icon={<AlertCircle className="h-5 w-5 text-red-500" />}
-        />
-        
-        <TaskPriorityGroup
-          title="Medium Priority"
-          tasks={mediumPriorityTasks}
-          priority="medium"
-          droppableId="medium-priority"
-          icon={<CircleDot className="h-5 w-5 text-yellow-500" />}
-        />
-        
-        <TaskPriorityGroup
-          title="Low Priority"
-          tasks={lowPriorityTasks}
-          priority="low"
-          droppableId="low-priority"
-          icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
-        />
-      </DragDropContext>
+      <TaskPriorityGroup
+        title="High Priority"
+        tasks={highPriorityTasks}
+        priority="high"
+        icon={<AlertCircle className="h-5 w-5 text-red-500" />}
+      />
+      
+      <TaskPriorityGroup
+        title="Medium Priority"
+        tasks={mediumPriorityTasks}
+        priority="medium"
+        icon={<CircleDot className="h-5 w-5 text-yellow-500" />}
+      />
+      
+      <TaskPriorityGroup
+        title="Low Priority"
+        tasks={lowPriorityTasks}
+        priority="low"
+        icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
+      />
     </motion.div>
   );
 };
