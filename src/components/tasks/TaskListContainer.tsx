@@ -5,6 +5,7 @@ import TaskCard from "./TaskCard";
 import TaskEmptyState from "./TaskEmptyState";
 import { useTaskStore } from "@/lib/store";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
+import { useCallback } from "react";
 
 interface TaskListContainerProps {
   filteredTasks: Task[];
@@ -14,7 +15,7 @@ interface TaskListContainerProps {
 const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainerProps) => {
   const { reorderTasks } = useTaskStore();
 
-  const handleDragEnd = (result: DropResult) => {
+  const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source } = result;
     
     // If there's no destination or the item was dropped in the same position
@@ -25,20 +26,21 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     }
     
     // Get all task IDs in their current order
-    const reorderedIds = filteredTasks.map(task => task.id);
+    const taskIds = filteredTasks.map(task => task.id);
     
-    // Move the dragged task ID from its source to destination position
-    const [movedTaskId] = reorderedIds.splice(source.index, 1);
-    reorderedIds.splice(destination.index, 0, movedTaskId);
+    // Create a new array with the updated order
+    const newTaskIds = [...taskIds];
+    const [movedTaskId] = newTaskIds.splice(source.index, 1);
+    newTaskIds.splice(destination.index, 0, movedTaskId);
     
     // Update the store with new order
     reorderTasks(
       movedTaskId,
       source.index,
       destination.index,
-      reorderedIds
+      newTaskIds
     );
-  };
+  }, [filteredTasks, reorderTasks]);
 
   return (
     <div className="space-y-4">
@@ -47,7 +49,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
           <Droppable droppableId="tasks-list">
             {(provided, snapshot) => (
               <div 
-                className={`space-y-4 p-2 rounded-lg min-h-[100px] ${
+                className={`space-y-4 p-2 rounded-lg min-h-[100px] transition-colors ${
                   snapshot.isDraggingOver ? "bg-accent/20" : ""
                 }`}
                 ref={provided.innerRef}
@@ -61,7 +63,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className={`mb-4 ${
+                          className={`mb-4 transition-opacity ${
                             snapshot.isDragging ? "opacity-80" : ""
                           }`}
                           style={{

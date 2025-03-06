@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, ArrowDown, CircleDot } from "lucide-react";
 import TaskEmptyState from "./TaskEmptyState";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
+import { useCallback } from "react";
 
 interface TaskPriorityGroupProps {
   title: string;
@@ -20,7 +21,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
 
   if (tasks.length === 0) return null;
 
-  const handleDragEnd = (result: DropResult) => {
+  const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source } = result;
     
     // If there's no destination or the item was dropped in the same position
@@ -30,12 +31,13 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
       return;
     }
     
-    // Get all task IDs in their current order for this priority group
-    const reorderedIds = tasks.map(task => task.id);
+    // Get all task IDs in this priority group in their current order
+    const taskIds = tasks.map(task => task.id);
     
-    // Move the dragged task ID from its source to destination position
-    const [movedTaskId] = reorderedIds.splice(source.index, 1);
-    reorderedIds.splice(destination.index, 0, movedTaskId);
+    // Create a new array with the updated order
+    const newTaskIds = [...taskIds];
+    const [movedTaskId] = newTaskIds.splice(source.index, 1);
+    newTaskIds.splice(destination.index, 0, movedTaskId);
     
     // Update the store with new order
     reorderTasksInPriorityGroup(
@@ -43,9 +45,9 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
       priority,
       source.index,
       destination.index,
-      reorderedIds
+      newTaskIds
     );
-  };
+  }, [tasks, priority, reorderTasksInPriorityGroup]);
 
   return (
     <div className="mb-8">
@@ -60,7 +62,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
         <Droppable droppableId={`priority-${priority}`}>
           {(provided, snapshot) => (
             <div 
-              className={`space-y-4 p-2 rounded-lg min-h-[80px] ${
+              className={`space-y-4 p-2 rounded-lg min-h-[80px] transition-colors ${
                 snapshot.isDraggingOver ? "bg-accent/20" : ""
               }`}
               ref={provided.innerRef}
@@ -74,7 +76,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
                         ref={provided.innerRef}
                         {...provided.draggableProps}
                         {...provided.dragHandleProps}
-                        className={`mb-4 ${
+                        className={`mb-4 transition-opacity ${
                           snapshot.isDragging ? "opacity-80" : ""
                         }`}
                         style={{

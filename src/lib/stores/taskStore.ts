@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -24,7 +23,7 @@ interface TaskState {
   deleteSubtask: (taskId: string, subtaskId: string) => void;
 }
 
-export const useTaskStore = create<TaskState>((set) => ({
+export const useTaskStore = create<TaskState>((set, get) => ({
   tasks: [],
   
   addTask: (task) => set((state) => ({
@@ -115,10 +114,12 @@ export const useTaskStore = create<TaskState>((set) => ({
   })),
   
   updateTaskPriority: (id, priority, destinationIndex, reorderedIds) => set((state) => {
-    // Create a copy of all tasks
-    const allTasks = [...state.tasks];
+    console.log('updateTaskPriority called:', { id, priority, destinationIndex, reorderIdsLength: reorderedIds?.length });
     
-    // Find task by ID and create a new copy with updated priority
+    // Create a deep copy of all tasks
+    const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
+    
+    // Find task by ID 
     const taskIndex = allTasks.findIndex(task => task.id === id);
     if (taskIndex === -1) {
       console.error("Task not found for priority update:", id);
@@ -139,7 +140,6 @@ export const useTaskStore = create<TaskState>((set) => ({
     }
     
     // Apply the entire new order as specified by reorderedIds
-    const finalTaskOrder: Task[] = [];
     const taskMap = new Map<string, Task>();
     
     // Map all tasks by ID for easy access
@@ -151,6 +151,9 @@ export const useTaskStore = create<TaskState>((set) => ({
     taskMap.set(updatedTask.id, updatedTask);
     
     // Build the new task array based on the provided order
+    const finalTaskOrder: Task[] = [];
+    
+    // First add tasks with the specified order from reorderedIds
     reorderedIds.forEach(taskId => {
       const task = taskMap.get(taskId);
       if (task) {
@@ -176,14 +179,19 @@ export const useTaskStore = create<TaskState>((set) => ({
   }),
 
   reorderTasks: (taskId, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
+    console.log('reorderTasks called:', { taskId, sourceIndex, destinationIndex, reorderIdsLength: reorderedIds?.length });
+    
     if (!reorderedIds || reorderedIds.length === 0) {
       console.error("No reordered IDs provided for task reordering");
       return { tasks: state.tasks };
     }
 
+    // Create a deep copy of all tasks
+    const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
+    
     // Use a map to ensure each task ID is included exactly once
     const taskMap = new Map<string, Task>();
-    state.tasks.forEach(task => {
+    allTasks.forEach(task => {
       taskMap.set(task.id, task);
     });
     
@@ -208,23 +216,35 @@ export const useTaskStore = create<TaskState>((set) => ({
       sourceIndex,
       destinationIndex,
       taskId,
-      resultingOrder: newTasksOrder.map(t => t.title)
+      resultingOrderIds: newTasksOrder.map(t => t.id),
+      resultingTitles: newTasksOrder.map(t => t.title)
     });
     
     return { tasks: newTasksOrder };
   }),
 
   reorderTasksInPriorityGroup: (taskId, priority, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
+    console.log('reorderTasksInPriorityGroup called:', { 
+      taskId, 
+      priority, 
+      sourceIndex, 
+      destinationIndex, 
+      reorderIdsLength: reorderedIds?.length 
+    });
+    
     if (!reorderedIds || reorderedIds.length === 0) {
       console.error("No reordered IDs provided for task reordering in priority group");
       return { tasks: state.tasks };
     }
 
+    // Create deep copies of tasks
+    const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
+    
     // Get tasks in the specified priority group
-    const tasksInPriorityGroup = state.tasks.filter(task => task.priority === priority);
+    const tasksInPriorityGroup = allTasks.filter(task => task.priority === priority);
     
     // Get tasks not in the priority group
-    const tasksInOtherGroups = state.tasks.filter(task => task.priority !== priority);
+    const tasksInOtherGroups = allTasks.filter(task => task.priority !== priority);
     
     // Map priority group tasks by ID
     const priorityTaskMap = new Map<string, Task>();
@@ -257,7 +277,8 @@ export const useTaskStore = create<TaskState>((set) => ({
       destinationIndex,
       taskId,
       priority,
-      resultingOrder: newPriorityGroupOrder.map(t => t.title)
+      resultingOrderIds: newPriorityGroupOrder.map(t => t.id),
+      resultingTitles: newPriorityGroupOrder.map(t => t.title)
     });
     
     return { tasks: newTasksOrder };
