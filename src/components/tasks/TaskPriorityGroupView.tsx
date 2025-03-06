@@ -112,80 +112,97 @@ const TaskPriorityGroupView = () => {
 
     // Get the source and destination task lists
     let sourceTaskList: Task[] = [];
-    let destTaskList: Task[] = [];
     
     if (source.droppableId === 'high-priority') {
-      sourceTaskList = highPriorityTasks;
+      sourceTaskList = [...highPriorityTasks];
     } else if (source.droppableId === 'medium-priority') {
-      sourceTaskList = mediumPriorityTasks;
+      sourceTaskList = [...mediumPriorityTasks];
     } else if (source.droppableId === 'low-priority') {
-      sourceTaskList = lowPriorityTasks;
-    }
-
-    if (destination.droppableId === 'high-priority') {
-      destTaskList = highPriorityTasks;
-    } else if (destination.droppableId === 'medium-priority') {
-      destTaskList = mediumPriorityTasks;
-    } else if (destination.droppableId === 'low-priority') {
-      destTaskList = lowPriorityTasks;
+      sourceTaskList = [...lowPriorityTasks];
     }
     
     // Get the task that was dragged
     const taskToMove = sourceTaskList[source.index];
-
-    if (taskToMove) {
-      console.log("Task to move:", taskToMove);
-      
-      try {
-        // If moved to a different priority group, update its priority
-        if (source.droppableId !== destination.droppableId) {
-          const newPriority = priorityMap[destination.droppableId];
-          
-          // Create a clone of the destination list
-          const newDestList = [...destTaskList];
-          
-          // Insert the task at the destination position
-          newDestList.splice(destination.index, 0, {
-            ...taskToMove,
-            priority: newPriority
-          });
-          
-          // Update task priority and position
-          updateTaskPriority(
-            taskToMove.id, 
-            newPriority, 
-            destination.index,
-            newDestList.map(t => t.id)
-          );
-          
-          toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
-        } else {
-          // Same priority group, just reordering
-          // Create a new array with the reordered items
-          const reorderedTasks = Array.from(sourceTaskList);
-          const [removed] = reorderedTasks.splice(source.index, 1);
-          reorderedTasks.splice(destination.index, 0, removed);
-          
-          // Get the reordered IDs
-          const reorderedIds = reorderedTasks.map(task => task.id);
-          
-          // Update task position in the store
-          reorderTasksInPriorityGroup(
-            taskToMove.id,
-            taskToMove.priority,
-            source.index,
-            destination.index,
-            reorderedIds
-          );
-          
-          toast.success(`"${taskToMove.title}" reordered successfully`);
-        }
-      } catch (error) {
-        console.error("Failed to reorder task:", error);
-        toast.error("Failed to reorder task. Please try again.");
-      }
-    } else {
+    
+    if (!taskToMove) {
       console.error("Task not found:", source);
+      return;
+    }
+    
+    console.log("Task to move:", taskToMove);
+    
+    // If moved to a different priority group, update its priority
+    if (source.droppableId !== destination.droppableId) {
+      const newPriority = priorityMap[destination.droppableId];
+      
+      // Get destination task list
+      let destTaskList: Task[] = [];
+      if (destination.droppableId === 'high-priority') {
+        destTaskList = [...highPriorityTasks];
+      } else if (destination.droppableId === 'medium-priority') {
+        destTaskList = [...mediumPriorityTasks];
+      } else if (destination.droppableId === 'low-priority') {
+        destTaskList = [...lowPriorityTasks];
+      }
+      
+      // Create a copy of the task with the new priority
+      const taskWithNewPriority = {
+        ...taskToMove,
+        priority: newPriority
+      };
+      
+      // Create a new destination list with the task inserted
+      const newDestList = [...destTaskList];
+      newDestList.splice(destination.index, 0, taskWithNewPriority);
+      
+      // Get IDs in the new order
+      const reorderedIds = newDestList.map(t => t.id);
+      
+      console.log("Moving task to new priority group:", {
+        task: taskToMove.title,
+        fromPriority: taskToMove.priority,
+        toPriority: newPriority,
+        destinationIndex: destination.index,
+        newOrder: newDestList.map(t => t.title)
+      });
+      
+      // Update task priority and position
+      updateTaskPriority(
+        taskToMove.id, 
+        newPriority, 
+        destination.index,
+        reorderedIds
+      );
+      
+      toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
+    } else {
+      // Same priority group, just reordering
+      // Create a new array with the reordered items
+      const reorderedTasks = [...sourceTaskList];
+      const [removed] = reorderedTasks.splice(source.index, 1);
+      reorderedTasks.splice(destination.index, 0, removed);
+      
+      // Get the reordered IDs
+      const reorderedIds = reorderedTasks.map(task => task.id);
+      
+      console.log("Reordering within same priority group:", {
+        task: taskToMove.title,
+        priority: taskToMove.priority,
+        sourceIndex: source.index,
+        destinationIndex: destination.index,
+        newOrder: reorderedTasks.map(t => t.title)
+      });
+      
+      // Update task position in the store
+      reorderTasksInPriorityGroup(
+        taskToMove.id,
+        taskToMove.priority,
+        source.index,
+        destination.index,
+        reorderedIds
+      );
+      
+      toast.success(`"${taskToMove.title}" reordered successfully`);
     }
   };
 

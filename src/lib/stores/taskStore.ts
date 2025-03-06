@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -114,58 +115,64 @@ export const useTaskStore = create<TaskState>((set) => ({
   })),
   
   updateTaskPriority: (id, priority, destinationIndex, reorderedIds) => set((state) => {
+    // Create a copy of all tasks
     const allTasks = [...state.tasks];
     
+    // Find task by ID and create a new copy with updated priority
     const taskIndex = allTasks.findIndex(task => task.id === id);
     if (taskIndex === -1) {
       console.error("Task not found for priority update:", id);
       return { tasks: state.tasks };
     }
     
+    // Remove the task from its current position
     const [taskToUpdate] = allTasks.splice(taskIndex, 1);
     
+    // Create an updated version of the task with the new priority
     const updatedTask = { ...taskToUpdate, priority };
     
-    if (destinationIndex === undefined || !reorderedIds) {
+    // If no reordering info provided, just put it back at the same position
+    if (destinationIndex === undefined || !reorderedIds || reorderedIds.length === 0) {
       allTasks.splice(taskIndex, 0, updatedTask);
       console.log("Priority updated without reordering:", { taskId: id, newPriority: priority });
       return { tasks: allTasks };
     }
     
-    if (reorderedIds.length > 0) {
-      const newTasksOrder: Task[] = [];
-      const taskMap = new Map<string, Task>();
-      
-      allTasks.forEach(task => {
-        taskMap.set(task.id, task);
-      });
-      
-      taskMap.set(updatedTask.id, updatedTask);
-      
-      reorderedIds.forEach(taskId => {
-        const task = taskMap.get(taskId);
-        if (task) {
-          newTasksOrder.push(task);
-          taskMap.delete(taskId);
-        }
-      });
-      
-      taskMap.forEach(task => {
-        newTasksOrder.push(task);
-      });
-      
-      console.log("Task priority and position updated:", {
-        taskId: id,
-        newPriority: priority,
-        resultingOrder: newTasksOrder.filter(t => t.priority === priority).map(t => t.title)
-      });
-      
-      return { tasks: newTasksOrder };
-    }
+    // Apply the entire new order as specified by reorderedIds
+    const finalTaskOrder: Task[] = [];
+    const taskMap = new Map<string, Task>();
     
-    allTasks.push(updatedTask);
+    // Map all tasks by ID for easy access
+    allTasks.forEach(task => {
+      taskMap.set(task.id, task);
+    });
     
-    return { tasks: allTasks };
+    // Add the updated task to the map
+    taskMap.set(updatedTask.id, updatedTask);
+    
+    // Build the new task array based on the provided order
+    reorderedIds.forEach(taskId => {
+      const task = taskMap.get(taskId);
+      if (task) {
+        finalTaskOrder.push(task);
+        taskMap.delete(taskId);
+      }
+    });
+    
+    // Add any remaining tasks that weren't in the reorderedIds
+    taskMap.forEach(task => {
+      finalTaskOrder.push(task);
+    });
+    
+    console.log("Task priority and position updated:", {
+      taskId: id,
+      newPriority: priority,
+      resultingOrder: finalTaskOrder
+        .filter(t => t.priority === priority)
+        .map(t => t.title)
+    });
+    
+    return { tasks: finalTaskOrder };
   }),
 
   reorderTasks: (taskId, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
@@ -174,15 +181,16 @@ export const useTaskStore = create<TaskState>((set) => ({
       return { tasks: state.tasks };
     }
 
-    const allTasks = [...state.tasks];
-    
+    // Use a map to ensure each task ID is included exactly once
     const taskMap = new Map<string, Task>();
-    allTasks.forEach(task => {
+    state.tasks.forEach(task => {
       taskMap.set(task.id, task);
     });
     
+    // Create the new task order using the provided IDs
     const newTasksOrder: Task[] = [];
     
+    // Add tasks in the specified order
     reorderedIds.forEach(id => {
       const task = taskMap.get(id);
       if (task) {
@@ -191,6 +199,7 @@ export const useTaskStore = create<TaskState>((set) => ({
       }
     });
     
+    // Add any remaining tasks not included in reorderedIds
     taskMap.forEach(task => {
       newTasksOrder.push(task);
     });
@@ -199,10 +208,7 @@ export const useTaskStore = create<TaskState>((set) => ({
       sourceIndex,
       destinationIndex,
       taskId,
-      resultingOrder: reorderedIds.map(id => {
-        const task = state.tasks.find(t => t.id === id);
-        return task ? task.title : `Unknown (${id})`;
-      })
+      resultingOrder: newTasksOrder.map(t => t.title)
     });
     
     return { tasks: newTasksOrder };
@@ -214,17 +220,22 @@ export const useTaskStore = create<TaskState>((set) => ({
       return { tasks: state.tasks };
     }
 
-    const allTasks = [...state.tasks];
+    // Get tasks in the specified priority group
+    const tasksInPriorityGroup = state.tasks.filter(task => task.priority === priority);
     
-    const tasksInOtherGroups = allTasks.filter(task => task.priority !== priority);
+    // Get tasks not in the priority group
+    const tasksInOtherGroups = state.tasks.filter(task => task.priority !== priority);
     
+    // Map priority group tasks by ID
     const priorityTaskMap = new Map<string, Task>();
-    allTasks.filter(task => task.priority === priority).forEach(task => {
+    tasksInPriorityGroup.forEach(task => {
       priorityTaskMap.set(task.id, task);
     });
     
+    // Create the new order for tasks in the priority group
     const newPriorityGroupOrder: Task[] = [];
     
+    // Add tasks in the specified order
     reorderedIds.forEach(id => {
       const task = priorityTaskMap.get(id);
       if (task) {
@@ -233,10 +244,12 @@ export const useTaskStore = create<TaskState>((set) => ({
       }
     });
     
+    // Add any remaining tasks in the priority group not included in reorderedIds
     priorityTaskMap.forEach(task => {
       newPriorityGroupOrder.push(task);
     });
     
+    // Combine with tasks from other priority groups
     const newTasksOrder = [...tasksInOtherGroups, ...newPriorityGroupOrder];
     
     console.log("Task reordering in priority group complete:", {

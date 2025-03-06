@@ -32,21 +32,6 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       return;
     }
     
-    // Get the task that was dragged
-    const draggedTask = filteredTasks[source.index];
-    if (!draggedTask) {
-      console.error("Dragged task not found:", source.index, filteredTasks);
-      return;
-    }
-    
-    console.log("Drag operation:", {
-      task: draggedTask.title,
-      sourceIndex: source.index,
-      destinationIndex: destination.index,
-      tasksList: filteredTasks.map(t => t.title),
-      filteredTasksLength: filteredTasks.length
-    });
-    
     // Create a new array with the reordered items
     const reorderedTasks = Array.from(filteredTasks);
     const [removed] = reorderedTasks.splice(source.index, 1);
@@ -55,10 +40,19 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     // Get the reordered IDs
     const reorderedIds = reorderedTasks.map(task => task.id);
     
-    // Update task position in the store
-    reorderTasks(draggedTask.id, source.index, destination.index, reorderedIds);
+    // Log the operation for debugging
+    console.log("Reordering task:", {
+      sourceIndex: source.index,
+      destinationIndex: destination.index,
+      reorderedIds,
+      tasksList: reorderedTasks.map(t => t.title)
+    });
     
-    toast.success(`"${draggedTask.title}" reordered successfully`);
+    // Update task position in the store using the full list of reordered IDs
+    // Instead of using source and destination indices which can be problematic
+    reorderTasks(removed.id, source.index, destination.index, reorderedIds);
+    
+    toast.success(`"${removed.title}" reordered successfully`);
   };
 
   return (
