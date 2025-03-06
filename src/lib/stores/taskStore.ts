@@ -188,30 +188,30 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return { tasks: state.tasks };
     }
 
-    // Create a deep copy of all tasks
-    const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
-    
-    // Use a map to ensure each task ID is included exactly once
+    // Create a map of all tasks by ID for easy access
     const taskMap = new Map<string, Task>();
-    allTasks.forEach(task => {
+    state.tasks.forEach(task => {
       taskMap.set(task.id, task);
     });
     
-    // Create the new task order using the provided IDs
+    // Create a new task array based on the provided order in reorderedIds
     const newTasksOrder: Task[] = [];
     
-    // Add tasks in the specified order
+    // Add tasks in the specified order, maintaining the complete state of each task
     reorderedIds.forEach(id => {
       const task = taskMap.get(id);
       if (task) {
-        newTasksOrder.push(task);
+        newTasksOrder.push({ ...task });
         taskMap.delete(id);
+      } else {
+        console.warn(`Task ID ${id} was in reorderedIds but not found in the store`);
       }
     });
     
-    // Add any remaining tasks not included in reorderedIds
+    // Add any remaining tasks that weren't in reorderedIds
+    // This ensures we don't lose any tasks that might not be in the current filtered view
     taskMap.forEach(task => {
-      newTasksOrder.push(task);
+      newTasksOrder.push({ ...task });
     });
     
     console.log("Task reordering complete:", {

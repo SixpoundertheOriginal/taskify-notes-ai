@@ -1,4 +1,3 @@
-
 import { useTaskStore } from "@/lib/store";
 import { Priority, Task } from "@/lib/types";
 import { PriorityBadge } from "./TaskBadges";
@@ -17,7 +16,7 @@ interface TaskPriorityGroupProps {
 }
 
 const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupProps) => {
-  const { reorderTasksInPriorityGroup } = useTaskStore();
+  const { tasks: allTasks, reorderTasksInPriorityGroup } = useTaskStore();
 
   if (tasks.length === 0) return null;
 
@@ -31,24 +30,82 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
       return;
     }
     
-    // Get all task IDs in this priority group in their current order
-    const taskIds = tasks.map(task => task.id);
+    // Get all tasks in this priority group (including those that might be filtered out in the current view)
+    const allTasksInPriority = allTasks.filter(task => task.priority === priority);
     
-    // Create a new array with the updated order
-    const newTaskIds = [...taskIds];
-    const [movedTaskId] = newTaskIds.splice(source.index, 1);
-    newTaskIds.splice(destination.index, 0, movedTaskId);
+    // Create a mapping between all priority task IDs and their global position
+    const priorityTaskIdToIndex = new Map();
+    allTasksInPriority.forEach((task, index) => {
+      priorityTaskIdToIndex.set(task.id, index);
+    });
     
-    // Update the store with new order
-    // Use the stable draggableId instead of relying on the index
+    // Get the currently visible task IDs in this priority group
+    const visibleTaskIds = tasks.map(task => task.id);
+    
+    // Create a new array with the updated order for visible tasks
+    const newVisibleTaskIds = [...visibleTaskIds];
+    newVisibleTaskIds.splice(source.index, 1);
+    newVisibleTaskIds.splice(destination.index, 0, draggableId);
+    
+    // Create a new ordered array for ALL tasks in this priority (including those not visible)
+    const reorderedPriorityTaskIds = [];
+    
+    // Set to track which visible tasks have been processed
+    const processedVisibleIds = new Set();
+    
+    // Get all task IDs in this priority in their current order
+    const allPriorityTaskIds = allTasksInPriority.map(task => task.id);
+    
+    // Create a set of visible IDs for quick lookups
+    const visibleIdsSet = new Set(visibleTaskIds);
+    
+    // Go through all priority tasks and rebuild the complete order
+    for (const taskId of allPriorityTaskIds) {
+      // If this task is visible in the current filtered view
+      if (visibleIdsSet.has(taskId)) {
+        // Skip for now - we'll add visible tasks in their new order later
+        continue;
+      } else {
+        // This task is in this priority group but not visible in the current filtered view
+        // Keep its relative position
+        reorderedPriorityTaskIds.push(taskId);
+      }
+    }
+    
+    // Now insert all visible tasks in their new order
+    for (const visibleId of newVisibleTaskIds) {
+      // Find the original position of this task
+      const originalIndex = priorityTaskIdToIndex.get(visibleId);
+      
+      // Calculate the appropriate insertion point to maintain relative positions with non-visible tasks
+      let insertionIndex = 0;
+      
+      // If there's a task before this in the visible list, try to position after it
+      const visibleIndex = newVisibleTaskIds.indexOf(visibleId);
+      if (visibleIndex > 0) {
+        const previousVisibleId = newVisibleTaskIds[visibleIndex - 1];
+        const previousIndex = reorderedPriorityTaskIds.indexOf(previousVisibleId);
+        if (previousIndex !== -1) {
+          insertionIndex = previousIndex + 1;
+        }
+      } else {
+        // This is the first visible task, find where to insert it
+        insertionIndex = Math.min(originalIndex, reorderedPriorityTaskIds.length);
+      }
+      
+      // Insert the task at the calculated position
+      reorderedPriorityTaskIds.splice(insertionIndex, 0, visibleId);
+    }
+    
+    // Update the store with new order for all tasks in this priority group
     reorderTasksInPriorityGroup(
-      draggableId, // Using the draggableId (task ID) directly
+      draggableId,
       priority,
       source.index,
       destination.index,
-      newTaskIds
+      reorderedPriorityTaskIds
     );
-  }, [tasks, priority, reorderTasksInPriorityGroup]);
+  }, [tasks, allTasks, priority, reorderTasksInPriorityGroup]);
 
   return (
     <div className="mb-8">

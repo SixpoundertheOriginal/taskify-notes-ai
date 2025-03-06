@@ -1,4 +1,3 @@
-
 import { AnimatePresence } from "framer-motion";
 import { Task } from "@/lib/types";
 import TaskCard from "./TaskCard";
@@ -13,7 +12,7 @@ interface TaskListContainerProps {
 }
 
 const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainerProps) => {
-  const { reorderTasks } = useTaskStore();
+  const { tasks: allTasks, reorderTasks } = useTaskStore();
 
   const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -25,23 +24,80 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       return;
     }
     
-    // Get all task IDs in their current order
-    const taskIds = filteredTasks.map(task => task.id);
+    // Create a mapping between filtered task IDs and their position in the full list
+    const taskIdToFullListIndex = new Map();
+    allTasks.forEach((task, index) => {
+      taskIdToFullListIndex.set(task.id, index);
+    });
     
-    // Create a new array with the updated order
-    const newTaskIds = [...taskIds];
-    const [movedTaskId] = newTaskIds.splice(source.index, 1);
-    newTaskIds.splice(destination.index, 0, movedTaskId);
+    // Get the task IDs from the filtered tasks
+    const filteredTaskIds = filteredTasks.map(task => task.id);
     
-    // Update the store with new order
-    // Use the stable draggableId instead of relying on the index
+    // Create a new array with the correct order in the filtered view
+    const newFilteredTaskIds = [...filteredTaskIds];
+    newFilteredTaskIds.splice(source.index, 1);
+    newFilteredTaskIds.splice(destination.index, 0, draggableId);
+    
+    // Generate the complete reordered list with all tasks (including non-filtered ones)
+    // First, create a set of filtered IDs for quick lookups
+    const filteredIdsSet = new Set(filteredTaskIds);
+    
+    // Start with an array of all task IDs in their current order
+    const allTaskIds = allTasks.map(task => task.id);
+    
+    // Create a new ordered array for the complete task list
+    const reorderedCompleteList = [];
+    
+    // Track which filtered tasks have been processed
+    const processedFilteredIds = new Set();
+    
+    // Go through all tasks and rebuild the order
+    for (const taskId of allTaskIds) {
+      // If this task is in the filtered list, we'll handle it differently
+      if (filteredIdsSet.has(taskId)) {
+        // Skip for now - we'll add filtered tasks in their new order later
+        continue;
+      } else {
+        // This task was not in the filtered view, keep its position
+        reorderedCompleteList.push(taskId);
+      }
+    }
+    
+    // Now insert all filtered tasks in their new order
+    for (const filteredId of newFilteredTaskIds) {
+      // Find the original position of this task
+      const originalIndex = taskIdToFullListIndex.get(filteredId);
+      
+      // Find the right insertion point in the complete list
+      // This ensures filtered tasks maintain relative positions with non-filtered tasks
+      let insertionIndex = 0;
+      
+      // If there's a task before this in the filtered view, try to position after it
+      const filteredIndex = newFilteredTaskIds.indexOf(filteredId);
+      if (filteredIndex > 0) {
+        const previousFilteredId = newFilteredTaskIds[filteredIndex - 1];
+        const previousIndex = reorderedCompleteList.indexOf(previousFilteredId);
+        if (previousIndex !== -1) {
+          insertionIndex = previousIndex + 1;
+        }
+      } else {
+        // This is the first filtered task, find where to insert it
+        // Try to maintain its general position in the list
+        insertionIndex = Math.min(originalIndex, reorderedCompleteList.length);
+      }
+      
+      // Insert the task at the calculated position
+      reorderedCompleteList.splice(insertionIndex, 0, filteredId);
+    }
+    
+    // Update the store with the new order that contains all tasks
     reorderTasks(
-      draggableId, // Using the draggableId (task ID) instead of referencing by index
+      draggableId,
       source.index,
       destination.index,
-      newTaskIds
+      reorderedCompleteList
     );
-  }, [filteredTasks, reorderTasks]);
+  }, [filteredTasks, allTasks, reorderTasks]);
 
   return (
     <div className="space-y-4">
