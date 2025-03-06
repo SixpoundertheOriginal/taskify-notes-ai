@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
+import { demoTasks } from '../demoData';
 
 interface TaskState {
   tasks: Task[];
@@ -24,7 +25,8 @@ interface TaskState {
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
-  tasks: [],
+  // Initialize with demo tasks
+  tasks: demoTasks,
   
   addTask: (task) => set((state) => ({
     tasks: [
