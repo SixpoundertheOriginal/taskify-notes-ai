@@ -9,12 +9,14 @@ import { formatDistanceToNow } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   TaskEditableTitle, 
-  TaskEditableDescription, 
-  TaskEditablePriority, 
-  TaskEditableStatus,
-  TaskEditableDate,
-  TaskEditableReminder 
+  TaskEditableDescription
 } from "./TaskEditableField";
+import { 
+  SafeTaskEditablePriority, 
+  SafeTaskEditableStatus,
+  SafeTaskEditableDate,
+  SafeTaskEditableReminder
+} from "./TaskEditableWrapper";
 import TaskSubtaskList from "./TaskSubtaskList";
 import TaskActions from "./TaskActions";
 import TaskEditControls from "./TaskEditControls";
@@ -206,7 +208,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
               </AnimatePresence>
               
               <div className="flex flex-wrap items-center gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                <TaskEditablePriority
+                <SafeTaskEditablePriority
                   value={editedPriority}
                   isEditing={editingField === "priority"}
                   isCompleted={task.completed}
@@ -215,7 +217,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
                   onSave={() => saveField("priority")}
                 />
                 
-                <TaskEditableStatus
+                <SafeTaskEditableStatus
                   value={editedStatus}
                   isEditing={editingField === "status"}
                   isCompleted={task.completed}
@@ -224,7 +226,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
                   onSave={() => saveField("status")}
                 />
                 
-                <TaskEditableDate
+                <SafeTaskEditableDate
                   value={editedDueDate}
                   isEditing={editingField === "dueDate"}
                   isCompleted={task.completed}
@@ -233,7 +235,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
                   onSave={() => saveField("dueDate")}
                 />
                 
-                <TaskEditableReminder
+                <SafeTaskEditableReminder
                   value={editedReminderTime}
                   isEditing={editingField === "reminderTime"}
                   isCompleted={task.completed}
