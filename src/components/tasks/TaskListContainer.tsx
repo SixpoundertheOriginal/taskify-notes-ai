@@ -1,4 +1,3 @@
-
 import { AnimatePresence } from "framer-motion";
 import { Task } from "@/lib/types";
 import TaskCard from "./TaskCard";
@@ -33,6 +32,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const handleDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     
+    // If there's no destination or dropped in the same position, do nothing
     if (!destination || 
         (destination.droppableId === source.droppableId && 
          destination.index === source.index)) {
@@ -89,14 +89,9 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       );
       
       // Send update to backend without blocking UI
-      const savePromise = saveTasksOrder(allTasks);
-      
-      // Use EdgeRuntime.waitUntil for background processing if available
-      if (typeof EdgeRuntime !== 'undefined') {
-        EdgeRuntime.waitUntil(savePromise);
-      } else {
-        // If not in edge runtime, handle normally but still don't block UI
-        savePromise.catch(error => {
+      // Use Promise handling instead of EdgeRuntime.waitUntil
+      saveTasksOrder(allTasks)
+        .catch(error => {
           console.error("Background save failed:", error);
           // Revert to previous state on error
           setLocalFilteredTasks(previousStateRef.current);
@@ -108,7 +103,6 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
           );
           toast.error("Failed to save task order");
         });
-      }
       
     } catch (error) {
       console.error("Error during drag and drop:", error);
