@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -170,10 +171,10 @@ export const useTaskStore = create<TaskState>((set) => ({
       }
     }
 
-    // If source index was before destination index, the removal shifted positions
-    // But only if both indices refer to the same container (and not during priority changes)
+    // If the original source index was before the destination,
+    // we need to adjust the destination index since we've already removed the item
     if (actualSourceIndex < actualDestinationIndex) {
-      actualDestinationIndex = Math.max(0, actualDestinationIndex - 1);
+      actualDestinationIndex--;
     }
     
     // Insert the task at the calculated destination position
@@ -185,7 +186,8 @@ export const useTaskStore = create<TaskState>((set) => ({
       taskId: taskToMove.id,
       actualSourceIndex,
       actualDestinationIndex,
-      taskTitle: taskToMove.title
+      taskTitle: taskToMove.title,
+      resultingOrder: allTasks.map(t => t.title)
     });
     
     return { tasks: allTasks };

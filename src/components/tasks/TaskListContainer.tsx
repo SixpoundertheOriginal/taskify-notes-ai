@@ -21,12 +21,14 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     
     // Dropped outside the list
     if (!destination) {
+      console.log("Dropped outside list - no action taken");
       return;
     }
     
     // No change in position
     if (source.droppableId === destination.droppableId && 
         source.index === destination.index) {
+      console.log("No position change - no action taken");
       return;
     }
     
@@ -37,25 +39,15 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       return;
     }
     
-    // Get the task IDs in the current filtered view
-    const taskIds = filteredTasks.map(task => task.id);
-    
-    // Map visual positions to actual task IDs
-    const sourceId = taskIds[source.index];
-    const destinationId = destination.index < taskIds.length 
-      ? taskIds[destination.index] 
-      : null;
-    
     console.log("Drag operation:", {
       task: draggedTask.title,
       sourceIndex: source.index,
       destinationIndex: destination.index,
-      sourceId,
-      destinationId,
-      tasksList: filteredTasks.map(t => t.title)
+      tasksList: filteredTasks.map(t => t.title),
+      filteredTasksLength: filteredTasks.length
     });
     
-    // Update task position in the store with filtered tasks context
+    // Update task position in the store
     reorderTasks(source.index, destination.index, filteredTasks);
     
     toast.success(`"${draggedTask.title}" reordered successfully`);
