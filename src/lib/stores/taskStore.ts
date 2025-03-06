@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -17,6 +16,9 @@ interface TaskState {
   updateTaskPriority: (id: string, priority: Task['priority'], destinationIndex?: number, reorderedIds?: string[]) => void;
   reorderTasks: (taskId: string, sourceIndex: number, destinationIndex: number, reorderedIds: string[]) => void;
   reorderTasksInPriorityGroup: (taskId: string, priority: Priority, sourceIndex: number, destinationIndex: number, reorderedIds: string[]) => void;
+  
+  // Cross-list drag and drop
+  moveTaskBetweenLists: (taskId: string, sourcePriority: Priority, targetPriority: Priority, sourceIndex: number, destinationIndex: number) => void;
   
   // Subtask operations
   addSubtask: (taskId: string, subtaskTitle: string) => void;
@@ -293,5 +295,77 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     });
     
     return { tasks: newTasksOrder };
+  }),
+
+  moveTaskBetweenLists: (taskId, sourcePriority, targetPriority, sourceIndex, destinationIndex) => set((state) => {
+    console.log('moveTaskBetweenLists called:', { 
+      taskId, 
+      sourcePriority, 
+      targetPriority, 
+      sourceIndex, 
+      destinationIndex 
+    });
+    
+    // Find the task to move
+    const taskToMove = state.tasks.find(task => task.id === taskId);
+    if (!taskToMove) {
+      console.error("Task not found for cross-list move:", taskId);
+      return { tasks: state.tasks };
+    }
+    
+    // Create an updated version of the task with the new priority
+    const updatedTask = { ...taskToMove, priority: targetPriority };
+    
+    // Create a new immutable array of tasks with the task removed from its current position
+    // and updated with the new priority
+    const updatedTasks = state.tasks.map(task => 
+      task.id === taskId ? updatedTask : task
+    );
+    
+    // Reorder the tasks in the target priority group
+    const tasksInTargetPriority = updatedTasks.filter(task => task.priority === targetPriority);
+    
+    // Move the task to the correct position in the target priority group
+    const updatedTargetPriorityTasks = [
+      ...tasksInTargetPriority.slice(0, destinationIndex),
+      updatedTask,
+      ...tasksInTargetPriority.slice(destinationIndex)
+    ].filter((task, index, self) => 
+      // Remove duplicates (the task appears twice because we mapped it above and added it again here)
+      index === self.findIndex(t => t.id === task.id)
+    );
+    
+    // Map all tasks by priority for easy reconstruction
+    const tasksByPriority = new Map<Priority, Task[]>();
+    updatedTasks.forEach(task => {
+      if (task.priority === targetPriority) {
+        // Skip target priority tasks, we'll add the reordered ones later
+        return;
+      }
+      
+      if (!tasksByPriority.has(task.priority)) {
+        tasksByPriority.set(task.priority, []);
+      }
+      tasksByPriority.get(task.priority)?.push(task);
+    });
+    
+    // Add the reordered target priority tasks
+    tasksByPriority.set(targetPriority, updatedTargetPriorityTasks);
+    
+    // Flatten the map back to a single array
+    const finalTasksOrder: Task[] = [];
+    tasksByPriority.forEach(tasks => {
+      finalTasksOrder.push(...tasks);
+    });
+    
+    console.log("Cross-list task move complete:", {
+      taskId,
+      fromPriority: sourcePriority,
+      toPriority: targetPriority,
+      atPosition: destinationIndex,
+      resultingTargetPriorityTasks: updatedTargetPriorityTasks.map(t => t.title)
+    });
+    
+    return { tasks: finalTasksOrder };
   }),
 }));
