@@ -8,7 +8,7 @@ import TaskFilters, { FilterOption, SortOption } from "./TaskFilters";
 import TaskListContainer from "./TaskListContainer";
 import TaskPriorityGroupView from "./TaskPriorityGroupView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ListFilter, LayersThree } from "lucide-react";
+import { ListFilter, Layers } from "lucide-react";
 
 const TaskList = () => {
   const { tasks } = useTaskStore();
@@ -79,7 +79,7 @@ const TaskList = () => {
                 <span className="hidden sm:inline">List</span>
               </TabsTrigger>
               <TabsTrigger value="priority" className="flex items-center gap-1 px-3">
-                <LayersThree className="h-4 w-4" />
+                <Layers className="h-4 w-4" />
                 <span className="hidden sm:inline">By Priority</span>
               </TabsTrigger>
             </TabsList>
