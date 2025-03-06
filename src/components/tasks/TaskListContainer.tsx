@@ -1,3 +1,4 @@
+
 import { AnimatePresence } from "framer-motion";
 import { Task } from "@/lib/types";
 import TaskCard from "./TaskCard";
@@ -24,31 +25,51 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source, draggableId } = result;
     
+    console.log("Drag end event:", { 
+      taskId: draggableId,
+      sourceIndex: source.index,
+      destinationIndex: destination?.index,
+      sourceDroppableId: source.droppableId,
+      destinationDroppableId: destination?.droppableId
+    });
+    
     if (!destination || 
         (destination.droppableId === source.droppableId && 
          destination.index === source.index)) {
+      console.log("Drop canceled or dropped in same position");
       return;
     }
     
     try {
+      console.log("Starting task reordering process");
+      console.log("Local filtered tasks before reordering:", 
+        localFilteredTasks.map(t => ({ id: t.id, title: t.title })));
+      
       const newLocalFilteredTasks = [...localFilteredTasks];
       
       const [removedTask] = newLocalFilteredTasks.splice(source.index, 1);
+      console.log("Removed task:", { id: removedTask.id, title: removedTask.title });
       
       newLocalFilteredTasks.splice(destination.index, 0, removedTask);
+      console.log("Local filtered tasks after reordering:", 
+        newLocalFilteredTasks.map(t => ({ id: t.id, title: t.title })));
       
       setLocalFilteredTasks(newLocalFilteredTasks);
       
+      // Map task IDs to their indices in the full task list
       const taskIdToFullListIndex = new Map();
       allTasks.forEach((task, index) => {
         taskIdToFullListIndex.set(task.id, index);
       });
+      console.log("Task ID to index mapping:", Object.fromEntries(taskIdToFullListIndex));
       
       const filteredTaskIds = newLocalFilteredTasks.map(task => task.id);
+      console.log("Filtered task IDs in new order:", filteredTaskIds);
       
       const filteredIdsSet = new Set(filteredTaskIds);
       
       const allTaskIds = allTasks.map(task => task.id);
+      console.log("All task IDs before reordering:", allTaskIds);
       
       const reorderedCompleteList = [];
       
@@ -59,6 +80,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
           reorderedCompleteList.push(taskId);
         }
       }
+      console.log("Reordered list (non-filtered tasks only):", reorderedCompleteList);
       
       for (const filteredId of filteredTaskIds) {
         const originalIndex = taskIdToFullListIndex.get(filteredId);
@@ -76,8 +98,11 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
           insertionIndex = Math.min(originalIndex, reorderedCompleteList.length);
         }
         
+        console.log(`Inserting task ${filteredId} at position ${insertionIndex}`);
         reorderedCompleteList.splice(insertionIndex, 0, filteredId);
       }
+      
+      console.log("Final reordered complete list:", reorderedCompleteList);
       
       reorderTasks(
         draggableId,
@@ -85,8 +110,11 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         destination.index,
         reorderedCompleteList
       );
+      
+      console.log("Reordering operation completed successfully");
     } catch (error) {
       console.error("Error during drag and drop:", error);
+      console.log("Reverting to previous filtered tasks state");
       setLocalFilteredTasks(filteredTasks);
       toast.error("Failed to update task position. Please try again.");
     }

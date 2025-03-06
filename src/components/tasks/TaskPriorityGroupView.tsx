@@ -93,19 +93,32 @@ const TaskPriorityGroupView = () => {
   const handleDragEnd = useCallback((result: DropResult) => {
     const { destination, source, draggableId } = result;
     
+    console.log("Priority Group View - Drag end event:", { 
+      taskId: draggableId,
+      sourceDroppableId: source.droppableId,
+      sourceIndex: source.index,
+      destinationDroppableId: destination?.droppableId,
+      destinationIndex: destination?.index
+    });
+    
     // If there's no destination, return
     if (!destination) {
+      console.log("Drop canceled - no destination");
       return;
     }
     
     // If dropping in the same position, do nothing
     if (source.droppableId === destination.droppableId && source.index === destination.index) {
+      console.log("Dropped in the same position - no action needed");
       return;
     }
     
     // Extract priority information from droppableIds
     const sourcePriorityString = source.droppableId.split('-')[1] as Priority;
     const destPriorityString = destination.droppableId.split('-')[1] as Priority;
+    
+    console.log("Source priority:", sourcePriorityString);
+    console.log("Destination priority:", destPriorityString);
     
     // Find the task being dragged
     const draggedTask = localTasks.find(task => task.id === draggableId);
@@ -114,27 +127,40 @@ const TaskPriorityGroupView = () => {
       return;
     }
     
+    console.log("Task being dragged:", {
+      id: draggedTask.id,
+      title: draggedTask.title,
+      priority: draggedTask.priority
+    });
+    
     // Create a deep copy of current tasks for optimistic update
     const newLocalTasks = [...localTasks];
     
     try {
       // Apply optimistic update to local state first
       if (sourcePriorityString === destPriorityString) {
-        // Same priority group - reordering within the group
+        console.log("Same priority group reordering");
         
         // Get tasks in this priority group
         const tasksInPriority = newLocalTasks.filter(task => 
           task.priority === sourcePriorityString
         );
         
+        console.log("Tasks in priority group before reordering:", 
+          tasksInPriority.map(t => ({ id: t.id, title: t.title })));
+        
         // Create new order for the priority group
         const updatedTasksInPriority = [...tasksInPriority];
         
         // Remove the task from its current position
         const [removedTask] = updatedTasksInPriority.splice(source.index, 1);
+        console.log("Removed task:", { id: removedTask.id, title: removedTask.title });
         
         // Insert the task at its new position
         updatedTasksInPriority.splice(destination.index, 0, removedTask);
+        
+        console.log("Tasks in priority group after reordering:", 
+          updatedTasksInPriority.map(t => ({ id: t.id, title: t.title })));
         
         // Update all tasks with the new priority group order
         const updatedTasks = newLocalTasks.map(task => {
@@ -153,6 +179,7 @@ const TaskPriorityGroupView = () => {
         
         // Create the list of task IDs in the new order
         const newTaskIds = updatedTasksInPriority.map(task => task.id);
+        console.log("New task IDs order:", newTaskIds);
         
         // Update the store (in background)
         reorderTasksInPriorityGroup(
@@ -162,11 +189,20 @@ const TaskPriorityGroupView = () => {
           destination.index,
           newTaskIds
         );
+        
+        console.log("Reordering within priority group completed");
       } else {
         // Moving between different priority groups
+        console.log("Moving between different priority groups");
         
         // Create a new version of the task with updated priority
         const updatedTask = { ...draggedTask, priority: destPriorityString };
+        console.log("Updated task with new priority:", {
+          id: updatedTask.id,
+          title: updatedTask.title,
+          oldPriority: draggedTask.priority,
+          newPriority: updatedTask.priority
+        });
         
         // Create new local tasks array for the update
         const updatedTasks = newLocalTasks.map(task => 
@@ -184,6 +220,8 @@ const TaskPriorityGroupView = () => {
           source.index,
           destination.index
         );
+        
+        console.log("Cross-list movement completed");
       }
     } catch (error) {
       // If an error occurs, revert to the previous state
