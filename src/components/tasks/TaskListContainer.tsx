@@ -47,8 +47,16 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       filteredTasksLength: filteredTasks.length
     });
     
+    // Create a new array with the reordered items
+    const reorderedTasks = Array.from(filteredTasks);
+    const [removed] = reorderedTasks.splice(source.index, 1);
+    reorderedTasks.splice(destination.index, 0, removed);
+    
+    // Get the reordered IDs
+    const reorderedIds = reorderedTasks.map(task => task.id);
+    
     // Update task position in the store
-    reorderTasks(source.index, destination.index, filteredTasks);
+    reorderTasks(draggedTask.id, source.index, destination.index, reorderedIds);
     
     toast.success(`"${draggedTask.title}" reordered successfully`);
   };

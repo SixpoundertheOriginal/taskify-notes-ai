@@ -13,7 +13,7 @@ interface TaskState {
   
   // Task priority and ordering
   updateTaskPriority: (id: string, priority: Task['priority'], destinationIndex?: number, reorderedIds?: string[]) => void;
-  reorderTasks: (sourceIndex: number, destinationIndex: number, filteredTasks: Task[]) => void;
+  reorderTasks: (taskId: string, sourceIndex: number, destinationIndex: number, reorderedIds: string[]) => void;
   reorderTasksInPriorityGroup: (taskId: string, priority: Priority, sourceIndex: number, destinationIndex: number, reorderedIds: string[]) => void;
   
   // Subtask operations
@@ -132,159 +132,121 @@ export const useTaskStore = create<TaskState>((set) => ({
       return { tasks: allTasks };
     }
     
-    const tasksWithSamePriority = allTasks.filter(task => task.priority === priority);
-    
     if (reorderedIds.length > 0) {
-      let insertAfterIndex = -1;
+      const newTasksOrder: Task[] = [];
+      const taskMap = new Map<string, Task>();
       
-      if (destinationIndex < reorderedIds.length - 1) {
-        const nextTaskId = reorderedIds[destinationIndex];
-        insertAfterIndex = allTasks.findIndex(task => task.id === nextTaskId);
-      }
+      allTasks.forEach(task => {
+        taskMap.set(task.id, task);
+      });
       
-      if (insertAfterIndex !== -1) {
-        allTasks.splice(insertAfterIndex, 0, updatedTask);
-      } else {
-        let lastSamePriorityIndex = -1;
-        for (let i = allTasks.length - 1; i >= 0; i--) {
-          if (allTasks[i].priority === priority) {
-            lastSamePriorityIndex = i;
-            break;
-          }
+      taskMap.set(updatedTask.id, updatedTask);
+      
+      reorderedIds.forEach(taskId => {
+        const task = taskMap.get(taskId);
+        if (task) {
+          newTasksOrder.push(task);
+          taskMap.delete(taskId);
         }
-        
-        if (lastSamePriorityIndex !== -1) {
-          allTasks.splice(lastSamePriorityIndex + 1, 0, updatedTask);
-        } else {
-          allTasks.push(updatedTask);
-        }
-      }
-    } else {
-      allTasks.push(updatedTask);
+      });
+      
+      taskMap.forEach(task => {
+        newTasksOrder.push(task);
+      });
+      
+      console.log("Task priority and position updated:", {
+        taskId: id,
+        newPriority: priority,
+        resultingOrder: newTasksOrder.filter(t => t.priority === priority).map(t => t.title)
+      });
+      
+      return { tasks: newTasksOrder };
     }
     
-    console.log("Task priority and position updated:", {
-      taskId: id,
-      newPriority: priority,
-      taskTitle: updatedTask.title,
-      destinationIndex,
-      reorderedIds
-    });
+    allTasks.push(updatedTask);
     
     return { tasks: allTasks };
   }),
 
-  reorderTasks: (sourceIndex, destinationIndex, filteredTasks) => set((state) => {
-    if (
-      sourceIndex < 0 || 
-      destinationIndex < 0 || 
-      sourceIndex >= filteredTasks.length || 
-      destinationIndex >= filteredTasks.length
-    ) {
-      console.error("Invalid source or destination index", { sourceIndex, destinationIndex, taskCount: filteredTasks.length });
-      return { tasks: state.tasks };
-    }
-
-    const taskToMove = filteredTasks[sourceIndex];
-    if (!taskToMove) {
-      console.error("Task not found at source index:", sourceIndex);
+  reorderTasks: (taskId, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
+    if (!reorderedIds || reorderedIds.length === 0) {
+      console.error("No reordered IDs provided for task reordering");
       return { tasks: state.tasks };
     }
 
     const allTasks = [...state.tasks];
     
-    const actualSourceIndex = allTasks.findIndex(task => task.id === taskToMove.id);
-    if (actualSourceIndex === -1) {
-      console.error("Task not found in full task list:", taskToMove.id);
-      return { tasks: state.tasks };
-    }
+    const taskMap = new Map<string, Task>();
+    allTasks.forEach(task => {
+      taskMap.set(task.id, task);
+    });
     
-    const [removedTask] = allTasks.splice(actualSourceIndex, 1);
+    const newTasksOrder: Task[] = [];
     
-    let actualDestinationIndex;
-    
-    if (destinationIndex >= filteredTasks.length) {
-      actualDestinationIndex = allTasks.length;
-    } else {
-      const destinationTask = filteredTasks[destinationIndex];
-      
-      actualDestinationIndex = allTasks.findIndex(task => task.id === destinationTask.id);
-      
-      if (actualDestinationIndex === -1) {
-        console.warn("Destination task not found in full task list, appending to end");
-        actualDestinationIndex = allTasks.length;
+    reorderedIds.forEach(id => {
+      const task = taskMap.get(id);
+      if (task) {
+        newTasksOrder.push(task);
+        taskMap.delete(id);
       }
-    }
+    });
     
-    if (actualSourceIndex < actualDestinationIndex) {
-      actualDestinationIndex--;
-    }
-    
-    allTasks.splice(actualDestinationIndex, 0, removedTask);
+    taskMap.forEach(task => {
+      newTasksOrder.push(task);
+    });
     
     console.log("Task reordering complete:", {
       sourceIndex,
       destinationIndex,
-      taskId: taskToMove.id,
-      actualSourceIndex,
-      actualDestinationIndex,
-      taskTitle: taskToMove.title,
-      resultingOrder: allTasks.map(t => t.title)
+      taskId,
+      resultingOrder: reorderedIds.map(id => {
+        const task = state.tasks.find(t => t.id === id);
+        return task ? task.title : `Unknown (${id})`;
+      })
     });
     
-    return { tasks: allTasks };
+    return { tasks: newTasksOrder };
   }),
 
   reorderTasksInPriorityGroup: (taskId, priority, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
-    const allTasks = [...state.tasks];
-    
-    const actualSourceIndex = allTasks.findIndex(task => task.id === taskId);
-    if (actualSourceIndex === -1) {
-      console.error("Task not found in full task list:", taskId);
+    if (!reorderedIds || reorderedIds.length === 0) {
+      console.error("No reordered IDs provided for task reordering in priority group");
       return { tasks: state.tasks };
     }
+
+    const allTasks = [...state.tasks];
     
-    const [removedTask] = allTasks.splice(actualSourceIndex, 1);
+    const tasksInOtherGroups = allTasks.filter(task => task.priority !== priority);
     
-    let actualDestinationIndex = -1;
+    const priorityTaskMap = new Map<string, Task>();
+    allTasks.filter(task => task.priority === priority).forEach(task => {
+      priorityTaskMap.set(task.id, task);
+    });
     
-    if (destinationIndex >= reorderedIds.length) {
-      for (let i = allTasks.length - 1; i >= 0; i--) {
-        if (allTasks[i].priority === priority) {
-          actualDestinationIndex = i + 1;
-          break;
-        }
+    const newPriorityGroupOrder: Task[] = [];
+    
+    reorderedIds.forEach(id => {
+      const task = priorityTaskMap.get(id);
+      if (task) {
+        newPriorityGroupOrder.push(task);
+        priorityTaskMap.delete(id);
       }
-      if (actualDestinationIndex === -1) {
-        actualDestinationIndex = allTasks.length;
-      }
-    } else {
-      const destinationTaskId = reorderedIds[destinationIndex];
-      
-      actualDestinationIndex = allTasks.findIndex(task => task.id === destinationTaskId);
-      
-      if (actualDestinationIndex === -1) {
-        console.warn("Destination task not found in full task list, finding best position");
-        actualDestinationIndex = allTasks.findIndex(task => task.priority === priority);
-        if (actualDestinationIndex === -1) {
-          actualDestinationIndex = allTasks.length;
-        }
-      }
-    }
+    });
     
-    allTasks.splice(actualDestinationIndex, 0, removedTask);
+    priorityTaskMap.forEach(task => {
+      newPriorityGroupOrder.push(task);
+    });
+    
+    const newTasksOrder = [...tasksInOtherGroups, ...newPriorityGroupOrder];
     
     console.log("Task reordering in priority group complete:", {
       sourceIndex,
       destinationIndex,
-      taskId: removedTask.id,
-      actualSourceIndex,
-      actualDestinationIndex,
-      taskTitle: removedTask.title,
+      taskId,
       priority,
-      resultingOrder: allTasks.filter(t => t.priority === priority).map(t => t.title)
+      resultingOrder: newPriorityGroupOrder.map(t => t.title)
     });
     
-    return { tasks: allTasks };
+    return { tasks: newTasksOrder };
   }),
 }));
