@@ -129,38 +129,23 @@ export const useTaskStore = create<TaskState>((set) => ({
       return { tasks: state.tasks };
     }
 
-    // Get the moved task ID
+    // Get the moved task ID and create a map of filtered task positions
     const movedTaskId = filteredTasks[sourceIndex].id;
+    const filteredTaskPositions = new Map(
+      filteredTasks.map((task, index) => [task.id, index])
+    );
     
-    // Create a new array with all tasks
-    const allTasks = [...state.tasks];
+    // Create arrays for tasks that are in and out of the filtered view
+    const tasksInFilter = state.tasks.filter(task => filteredTaskPositions.has(task.id));
+    const tasksOutOfFilter = state.tasks.filter(task => !filteredTaskPositions.has(task.id));
     
-    // Find all task IDs from filteredTasks
-    const filteredTaskIds = filteredTasks.map(task => task.id);
-    
-    // Create a new array with the tasks in the new order
-    const reorderedFilteredTasks = [...filteredTasks];
-    
-    // Remove the task from its old position and insert at the new position
+    // Reorder the filtered tasks
+    const reorderedFilteredTasks = [...tasksInFilter];
     const [movedTask] = reorderedFilteredTasks.splice(sourceIndex, 1);
     reorderedFilteredTasks.splice(destinationIndex, 0, movedTask);
     
-    // Create a mapping of task IDs to their new positions
-    const newPositions = new Map(
-      reorderedFilteredTasks.map((task, index) => [task.id, index])
-    );
-    
-    // Update the full task list
-    const updatedTasks = allTasks.map(task => {
-      // If this task wasn't in the filtered list, keep it as is
-      if (!filteredTaskIds.includes(task.id)) {
-        return task;
-      }
-      
-      // Otherwise, this is a task that was in the filtered list
-      // Return the task from the reordered filtered list
-      return reorderedFilteredTasks.find(t => t.id === task.id) || task;
-    });
+    // Combine the reordered filtered tasks with the tasks that were out of filter
+    const updatedTasks = [...reorderedFilteredTasks, ...tasksOutOfFilter];
     
     console.log("Task reordering complete:", {
       sourceIndex,

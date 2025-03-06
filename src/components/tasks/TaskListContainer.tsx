@@ -37,17 +37,27 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       return;
     }
     
+    // Get the task IDs in the current filtered view
+    const taskIds = filteredTasks.map(task => task.id);
+    
+    // Map visual positions to actual task IDs
+    const sourceId = taskIds[source.index];
+    const destinationId = destination.index < taskIds.length 
+      ? taskIds[destination.index] 
+      : null;
+    
     console.log("Drag operation:", {
       task: draggedTask.title,
       sourceIndex: source.index,
       destinationIndex: destination.index,
+      sourceId,
+      destinationId,
       tasksList: filteredTasks.map(t => t.title)
     });
     
-    // Update task position in the store without changing priority
+    // Update task position in the store with filtered tasks context
     reorderTasks(source.index, destination.index, filteredTasks);
     
-    // Success message for reordering without changing priority
     toast.success(`"${draggedTask.title}" reordered successfully`);
   };
 
