@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -13,8 +12,9 @@ interface TaskState {
   deleteTask: (id: string) => void;
   
   // Task priority and ordering
-  updateTaskPriority: (id: string, priority: Task['priority']) => void;
+  updateTaskPriority: (id: string, priority: Task['priority'], destinationIndex?: number, reorderedIds?: string[]) => void;
   reorderTasks: (sourceIndex: number, destinationIndex: number, filteredTasks: Task[]) => void;
+  reorderTasksInPriorityGroup: (taskId: string, priority: Priority, sourceIndex: number, destinationIndex: number, reorderedIds: string[]) => void;
   
   // Subtask operations
   addSubtask: (taskId: string, subtaskTitle: string) => void;
@@ -113,14 +113,68 @@ export const useTaskStore = create<TaskState>((set) => ({
     ),
   })),
   
-  updateTaskPriority: (id, priority) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === id ? { ...task, priority } : task
-    ),
-  })),
+  updateTaskPriority: (id, priority, destinationIndex, reorderedIds) => set((state) => {
+    const allTasks = [...state.tasks];
+    
+    const taskIndex = allTasks.findIndex(task => task.id === id);
+    if (taskIndex === -1) {
+      console.error("Task not found for priority update:", id);
+      return { tasks: state.tasks };
+    }
+    
+    const [taskToUpdate] = allTasks.splice(taskIndex, 1);
+    
+    const updatedTask = { ...taskToUpdate, priority };
+    
+    if (destinationIndex === undefined || !reorderedIds) {
+      allTasks.splice(taskIndex, 0, updatedTask);
+      console.log("Priority updated without reordering:", { taskId: id, newPriority: priority });
+      return { tasks: allTasks };
+    }
+    
+    const tasksWithSamePriority = allTasks.filter(task => task.priority === priority);
+    
+    if (reorderedIds.length > 0) {
+      let insertAfterIndex = -1;
+      
+      if (destinationIndex < reorderedIds.length - 1) {
+        const nextTaskId = reorderedIds[destinationIndex];
+        insertAfterIndex = allTasks.findIndex(task => task.id === nextTaskId);
+      }
+      
+      if (insertAfterIndex !== -1) {
+        allTasks.splice(insertAfterIndex, 0, updatedTask);
+      } else {
+        let lastSamePriorityIndex = -1;
+        for (let i = allTasks.length - 1; i >= 0; i--) {
+          if (allTasks[i].priority === priority) {
+            lastSamePriorityIndex = i;
+            break;
+          }
+        }
+        
+        if (lastSamePriorityIndex !== -1) {
+          allTasks.splice(lastSamePriorityIndex + 1, 0, updatedTask);
+        } else {
+          allTasks.push(updatedTask);
+        }
+      }
+    } else {
+      allTasks.push(updatedTask);
+    }
+    
+    console.log("Task priority and position updated:", {
+      taskId: id,
+      newPriority: priority,
+      taskTitle: updatedTask.title,
+      destinationIndex,
+      reorderedIds
+    });
+    
+    return { tasks: allTasks };
+  }),
 
-  reorderTasks: (sourceIndex: number, destinationIndex: number, filteredTasks: Task[]) => set((state) => {
-    // Validate indices to prevent errors
+  reorderTasks: (sourceIndex, destinationIndex, filteredTasks) => set((state) => {
     if (
       sourceIndex < 0 || 
       destinationIndex < 0 || 
@@ -131,53 +185,41 @@ export const useTaskStore = create<TaskState>((set) => ({
       return { tasks: state.tasks };
     }
 
-    // Get the task being moved from the filtered list
     const taskToMove = filteredTasks[sourceIndex];
     if (!taskToMove) {
       console.error("Task not found at source index:", sourceIndex);
       return { tasks: state.tasks };
     }
 
-    // Create a new array with all tasks
     const allTasks = [...state.tasks];
     
-    // Find the actual position of the task in the complete list
     const actualSourceIndex = allTasks.findIndex(task => task.id === taskToMove.id);
     if (actualSourceIndex === -1) {
       console.error("Task not found in full task list:", taskToMove.id);
       return { tasks: state.tasks };
     }
     
-    // Remove the task from its current position
     const [removedTask] = allTasks.splice(actualSourceIndex, 1);
     
-    // Calculate the destination index in the full list
     let actualDestinationIndex;
     
     if (destinationIndex >= filteredTasks.length) {
-      // If moving to the end of the filtered list
       actualDestinationIndex = allTasks.length;
     } else {
-      // Get the task at the destination position in the filtered list
       const destinationTask = filteredTasks[destinationIndex];
       
-      // Find its position in the full list
       actualDestinationIndex = allTasks.findIndex(task => task.id === destinationTask.id);
       
-      // If the destination task wasn't found (shouldn't happen), append to the end
       if (actualDestinationIndex === -1) {
         console.warn("Destination task not found in full task list, appending to end");
         actualDestinationIndex = allTasks.length;
       }
     }
-
-    // If the original source index was before the destination,
-    // we need to adjust the destination index since we've already removed the item
+    
     if (actualSourceIndex < actualDestinationIndex) {
       actualDestinationIndex--;
     }
     
-    // Insert the task at the calculated destination position
     allTasks.splice(actualDestinationIndex, 0, removedTask);
     
     console.log("Task reordering complete:", {
@@ -188,6 +230,59 @@ export const useTaskStore = create<TaskState>((set) => ({
       actualDestinationIndex,
       taskTitle: taskToMove.title,
       resultingOrder: allTasks.map(t => t.title)
+    });
+    
+    return { tasks: allTasks };
+  }),
+
+  reorderTasksInPriorityGroup: (taskId, priority, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
+    const allTasks = [...state.tasks];
+    
+    const actualSourceIndex = allTasks.findIndex(task => task.id === taskId);
+    if (actualSourceIndex === -1) {
+      console.error("Task not found in full task list:", taskId);
+      return { tasks: state.tasks };
+    }
+    
+    const [removedTask] = allTasks.splice(actualSourceIndex, 1);
+    
+    let actualDestinationIndex = -1;
+    
+    if (destinationIndex >= reorderedIds.length) {
+      for (let i = allTasks.length - 1; i >= 0; i--) {
+        if (allTasks[i].priority === priority) {
+          actualDestinationIndex = i + 1;
+          break;
+        }
+      }
+      if (actualDestinationIndex === -1) {
+        actualDestinationIndex = allTasks.length;
+      }
+    } else {
+      const destinationTaskId = reorderedIds[destinationIndex];
+      
+      actualDestinationIndex = allTasks.findIndex(task => task.id === destinationTaskId);
+      
+      if (actualDestinationIndex === -1) {
+        console.warn("Destination task not found in full task list, finding best position");
+        actualDestinationIndex = allTasks.findIndex(task => task.priority === priority);
+        if (actualDestinationIndex === -1) {
+          actualDestinationIndex = allTasks.length;
+        }
+      }
+    }
+    
+    allTasks.splice(actualDestinationIndex, 0, removedTask);
+    
+    console.log("Task reordering in priority group complete:", {
+      sourceIndex,
+      destinationIndex,
+      taskId: removedTask.id,
+      actualSourceIndex,
+      actualDestinationIndex,
+      taskTitle: removedTask.title,
+      priority,
+      resultingOrder: allTasks.filter(t => t.priority === priority).map(t => t.title)
     });
     
     return { tasks: allTasks };

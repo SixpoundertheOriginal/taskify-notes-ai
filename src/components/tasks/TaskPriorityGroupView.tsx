@@ -72,7 +72,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
 };
 
 const TaskPriorityGroupView = () => {
-  const { tasks, updateTaskPriority, reorderTasks } = useTaskStore();
+  const { tasks, updateTaskPriority, reorderTasksInPriorityGroup } = useTaskStore();
   
   // Group tasks by priority
   const highPriorityTasks = tasks.filter(task => task.priority === "high");
@@ -110,44 +110,82 @@ const TaskPriorityGroupView = () => {
       'low-priority': 'low'
     };
 
-    // Get source and destination task lists
-    const getTaskList = (droppableId: string): Task[] => {
-      switch (droppableId) {
-        case 'high-priority':
-          return highPriorityTasks;
-        case 'medium-priority':
-          return mediumPriorityTasks;
-        case 'low-priority':
-          return lowPriorityTasks;
-        default:
-          return [];
-      }
-    };
-
-    const sourceList = getTaskList(source.droppableId);
-    const taskToMove = sourceList[source.index];
-
-    if (!taskToMove) {
-      console.error("Task not found:", source);
-      return;
+    // Get the source and destination task lists
+    let sourceTaskList: Task[] = [];
+    let destTaskList: Task[] = [];
+    
+    if (source.droppableId === 'high-priority') {
+      sourceTaskList = highPriorityTasks;
+    } else if (source.droppableId === 'medium-priority') {
+      sourceTaskList = mediumPriorityTasks;
+    } else if (source.droppableId === 'low-priority') {
+      sourceTaskList = lowPriorityTasks;
     }
 
-    // If moving between priority groups
-    if (source.droppableId !== destination.droppableId) {
-      const newPriority = priorityMap[destination.droppableId];
-      if (!newPriority) {
-        console.error("Invalid priority:", destination.droppableId);
-        return;
-      }
+    if (destination.droppableId === 'high-priority') {
+      destTaskList = highPriorityTasks;
+    } else if (destination.droppableId === 'medium-priority') {
+      destTaskList = mediumPriorityTasks;
+    } else if (destination.droppableId === 'low-priority') {
+      destTaskList = lowPriorityTasks;
+    }
+    
+    // Get the task that was dragged
+    const taskToMove = sourceTaskList[source.index];
 
-      updateTaskPriority(taskToMove.id, newPriority);
-      toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
-      console.log(`Priority updated to ${newPriority}`);
+    if (taskToMove) {
+      console.log("Task to move:", taskToMove);
+      
+      try {
+        // If moved to a different priority group, update its priority
+        if (source.droppableId !== destination.droppableId) {
+          const newPriority = priorityMap[destination.droppableId];
+          
+          // Create a clone of the destination list
+          const newDestList = [...destTaskList];
+          
+          // Insert the task at the destination position
+          newDestList.splice(destination.index, 0, {
+            ...taskToMove,
+            priority: newPriority
+          });
+          
+          // Update task priority and position
+          updateTaskPriority(
+            taskToMove.id, 
+            newPriority, 
+            destination.index,
+            newDestList.map(t => t.id)
+          );
+          
+          toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
+        } else {
+          // Same priority group, just reordering
+          // Create a new array with the reordered items
+          const reorderedTasks = Array.from(sourceTaskList);
+          const [removed] = reorderedTasks.splice(source.index, 1);
+          reorderedTasks.splice(destination.index, 0, removed);
+          
+          // Get the reordered IDs
+          const reorderedIds = reorderedTasks.map(task => task.id);
+          
+          // Update task position in the store
+          reorderTasksInPriorityGroup(
+            taskToMove.id,
+            taskToMove.priority,
+            source.index,
+            destination.index,
+            reorderedIds
+          );
+          
+          toast.success(`"${taskToMove.title}" reordered successfully`);
+        }
+      } catch (error) {
+        console.error("Failed to reorder task:", error);
+        toast.error("Failed to reorder task. Please try again.");
+      }
     } else {
-      // Reordering within the same priority group
-      const currentList = getTaskList(source.droppableId);
-      reorderTasks(source.index, destination.index, currentList);
-      toast.success(`"${taskToMove.title}" reordered successfully`);
+      console.error("Task not found:", source);
     }
   };
 
