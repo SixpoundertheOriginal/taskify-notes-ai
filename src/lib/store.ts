@@ -156,46 +156,47 @@ export const useTaskStore = create<TaskStore>((set) => ({
       return { tasks: state.tasks };
     }
 
-    // Get the task IDs in their current order
-    const taskIds = filteredTasks.map(task => task.id);
+    // Get the moved task ID
+    const movedTaskId = filteredTasks[sourceIndex].id;
     
-    // Reorder the IDs
-    const draggedId = taskIds[sourceIndex];
-    const newTaskIds = [...taskIds];
-    newTaskIds.splice(sourceIndex, 1);
-    newTaskIds.splice(destinationIndex, 0, draggedId);
+    // Create a new array with all tasks
+    const allTasks = [...state.tasks];
     
-    console.log("Reordering task", {
-      draggedId,
-      oldIndex: sourceIndex,
-      newIndex: destinationIndex,
-      oldOrder: taskIds,
-      newOrder: newTaskIds
-    });
-
-    // Create a new ordered array of tasks based on all tasks
-    const reorderedTasks = [...state.tasks];
+    // Find all task IDs from filteredTasks
+    const filteredTaskIds = filteredTasks.map(task => task.id);
     
-    // Create an index mapping for quick lookup
-    const taskIndexMap = new Map(state.tasks.map((task, index) => [task.id, index]));
+    // Create a new array with the tasks in the new order
+    const reorderedFilteredTasks = [...filteredTasks];
     
-    // Apply the new order (only for tasks in filteredTasks)
-    filteredTasks.forEach((task, idx) => {
-      const originalIndex = taskIndexMap.get(task.id);
-      const newIndex = taskIndexMap.get(newTaskIds[idx]);
-      
-      if (originalIndex !== undefined && newIndex !== undefined) {
-        // Swap positions
-        const temp = reorderedTasks[originalIndex];
-        reorderedTasks[originalIndex] = reorderedTasks[newIndex];
-        reorderedTasks[newIndex] = temp;
-        
-        // Update the map after swapping
-        taskIndexMap.set(reorderedTasks[originalIndex].id, originalIndex);
-        taskIndexMap.set(reorderedTasks[newIndex].id, newIndex);
+    // Remove the task from its old position and insert at the new position
+    const [movedTask] = reorderedFilteredTasks.splice(sourceIndex, 1);
+    reorderedFilteredTasks.splice(destinationIndex, 0, movedTask);
+    
+    // Create a mapping of task IDs to their new positions
+    const newPositions = new Map(
+      reorderedFilteredTasks.map((task, index) => [task.id, index])
+    );
+    
+    // Update the full task list
+    const updatedTasks = allTasks.map(task => {
+      // If this task wasn't in the filtered list, keep it as is
+      if (!filteredTaskIds.includes(task.id)) {
+        return task;
       }
+      
+      // Otherwise, this is a task that was in the filtered list
+      // Return the task from the reordered filtered list
+      return reorderedFilteredTasks.find(t => t.id === task.id) || task;
     });
     
-    return { tasks: reorderedTasks };
+    console.log("Task reordering complete:", {
+      sourceIndex,
+      destinationIndex,
+      movedTaskId,
+      oldOrder: filteredTasks.map(t => t.title),
+      newOrder: reorderedFilteredTasks.map(t => t.title)
+    });
+    
+    return { tasks: updatedTasks };
   }),
 }));

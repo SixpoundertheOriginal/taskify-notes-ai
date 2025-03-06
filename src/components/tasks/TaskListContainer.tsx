@@ -14,7 +14,7 @@ interface TaskListContainerProps {
 }
 
 const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainerProps) => {
-  const { updateTaskPriority, reorderTasks } = useTaskStore();
+  const { reorderTasks } = useTaskStore();
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
@@ -44,36 +44,11 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       tasksList: filteredTasks.map(t => t.title)
     });
     
-    // First, update task position in the store
+    // Update task position in the store without changing priority
     reorderTasks(source.index, destination.index, filteredTasks);
     
-    // Then, update priority based on new position if needed
-    let newPriority: Task['priority'] | null = null;
-    
-    // When task is moved to the top third of the list
-    if (destination.index < Math.floor(filteredTasks.length / 3)) {
-      if (draggedTask.priority !== 'high') {
-        newPriority = 'high';
-      }
-    } 
-    // When task is moved to the middle third of the list
-    else if (destination.index < Math.floor(filteredTasks.length * 2 / 3)) {
-      if (draggedTask.priority !== 'medium') {
-        newPriority = 'medium';
-      }
-    } 
-    // When task is moved to the bottom third of the list
-    else {
-      if (draggedTask.priority !== 'low') {
-        newPriority = 'low';
-      }
-    }
-    
-    // Update priority if changed
-    if (newPriority) {
-      updateTaskPriority(draggedTask.id, newPriority);
-      toast.success(`"${draggedTask.title}" priority updated to ${newPriority}`);
-    }
+    // Success message for reordering without changing priority
+    toast.success(`"${draggedTask.title}" reordered successfully`);
   };
 
   return (
@@ -89,7 +64,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                   snapshot.isDraggingOver ? 'bg-accent/30' : ''
                 }`}
               >
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="sync">
                   {filteredTasks.map((task, index) => (
                     <Draggable key={task.id} draggableId={task.id} index={index}>
                       {(provided, snapshot) => (

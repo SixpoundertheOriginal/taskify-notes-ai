@@ -38,29 +38,31 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
             ref={provided.innerRef}
             {...provided.droppableProps}
           >
-            {tasks.map((task, index) => (
-              <Draggable key={task.id} draggableId={task.id} index={index}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    className={`transition-all mb-4 ${snapshot.isDragging ? "opacity-80 scale-105 z-50" : ""}`}
-                  >
-                    <div className="flex items-start">
-                      <div 
-                        {...provided.dragHandleProps}
-                        className="mt-6 mr-2 p-1 rounded hover:bg-accent cursor-grab active:cursor-grabbing"
-                      >
-                        <GripVertical className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1">
-                        <TaskCard key={task.id} task={task} />
+            <AnimatePresence mode="sync">
+              {tasks.map((task, index) => (
+                <Draggable key={task.id} draggableId={task.id} index={index}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      className={`transition-all mb-4 ${snapshot.isDragging ? "opacity-80 scale-105 z-50" : ""}`}
+                    >
+                      <div className="flex items-start">
+                        <div 
+                          {...provided.dragHandleProps}
+                          className="mt-6 mr-2 p-1 rounded hover:bg-accent cursor-grab active:cursor-grabbing"
+                        >
+                          <GripVertical className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1">
+                          <TaskCard key={task.id} task={task} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </Draggable>
-            ))}
+                  )}
+                </Draggable>
+              ))}
+            </AnimatePresence>
             {provided.placeholder}
           </div>
         )}
@@ -131,9 +133,8 @@ const TaskPriorityGroupView = () => {
         console.log(`Priority updated to ${newPriority}`);
       } else {
         // If staying in same priority group but changing position,
-        // we don't need any special handling as react-beautiful-dnd will
-        // automatically handle the visual reorder
-        console.log(`Task staying in ${priorityMap[source.droppableId]} priority but reordering`);
+        // show a simple reordering message
+        toast.success(`"${taskToMove.title}" reordered successfully`);
       }
     } else {
       console.error("Task not found:", source);
