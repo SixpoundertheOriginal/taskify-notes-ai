@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -119,6 +120,7 @@ export const useTaskStore = create<TaskState>((set) => ({
   })),
 
   reorderTasks: (sourceIndex: number, destinationIndex: number, filteredTasks: Task[]) => set((state) => {
+    // Validate indices to prevent errors
     if (
       sourceIndex < 0 || 
       destinationIndex < 0 || 
@@ -129,32 +131,58 @@ export const useTaskStore = create<TaskState>((set) => ({
       return { tasks: state.tasks };
     }
 
-    // Get the moved task ID and create a map of filtered task positions
-    const movedTaskId = filteredTasks[sourceIndex].id;
-    const filteredTaskPositions = new Map(
-      filteredTasks.map((task, index) => [task.id, index])
-    );
+    // Get the task being moved from the filtered list
+    const taskToMove = filteredTasks[sourceIndex];
+    if (!taskToMove) {
+      console.error("Task not found at source index:", sourceIndex);
+      return { tasks: state.tasks };
+    }
+
+    // Create a new array with all tasks
+    const allTasks = [...state.tasks];
     
-    // Create arrays for tasks that are in and out of the filtered view
-    const tasksInFilter = state.tasks.filter(task => filteredTaskPositions.has(task.id));
-    const tasksOutOfFilter = state.tasks.filter(task => !filteredTaskPositions.has(task.id));
+    // Find the actual position of the task in the complete list
+    const actualSourceIndex = allTasks.findIndex(task => task.id === taskToMove.id);
+    if (actualSourceIndex === -1) {
+      console.error("Task not found in full task list:", taskToMove.id);
+      return { tasks: state.tasks };
+    }
     
-    // Reorder the filtered tasks
-    const reorderedFilteredTasks = [...tasksInFilter];
-    const [movedTask] = reorderedFilteredTasks.splice(sourceIndex, 1);
-    reorderedFilteredTasks.splice(destinationIndex, 0, movedTask);
+    // Remove the task from its current position
+    const [removedTask] = allTasks.splice(actualSourceIndex, 1);
     
-    // Combine the reordered filtered tasks with the tasks that were out of filter
-    const updatedTasks = [...reorderedFilteredTasks, ...tasksOutOfFilter];
+    // Calculate the destination index in the full list
+    let actualDestinationIndex;
+    
+    if (destinationIndex >= filteredTasks.length) {
+      // If moving to the end of the filtered list
+      actualDestinationIndex = allTasks.length;
+    } else {
+      // Get the task at the destination position in the filtered list
+      const destinationTask = filteredTasks[destinationIndex];
+      
+      // Find its position in the full list
+      actualDestinationIndex = allTasks.findIndex(task => task.id === destinationTask.id);
+      
+      // If the destination task wasn't found (shouldn't happen), append to the end
+      if (actualDestinationIndex === -1) {
+        console.warn("Destination task not found in full task list, appending to end");
+        actualDestinationIndex = allTasks.length;
+      }
+    }
+    
+    // Insert the task at the calculated destination position
+    allTasks.splice(actualDestinationIndex, 0, removedTask);
     
     console.log("Task reordering complete:", {
       sourceIndex,
       destinationIndex,
-      movedTaskId,
-      oldOrder: filteredTasks.map(t => t.title),
-      newOrder: reorderedFilteredTasks.map(t => t.title)
+      taskId: taskToMove.id,
+      actualSourceIndex,
+      actualDestinationIndex,
+      taskTitle: taskToMove.title
     });
     
-    return { tasks: updatedTasks };
+    return { tasks: allTasks };
   }),
 }));
