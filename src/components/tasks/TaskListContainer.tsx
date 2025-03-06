@@ -68,6 +68,15 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       console.log("Local filtered tasks after reordering:", 
         newLocalFilteredTasks.map(t => ({ id: t.id, title: t.title })));
       
+      // Verify the reordered list for correctness - ensure the dragged task is at the expected position
+      const taskAtDestination = newLocalFilteredTasks[destination.index];
+      if (taskAtDestination.id !== removedTask.id) {
+        console.error("Error: Task not correctly positioned after reordering. Expected", 
+          removedTask.id, "but found", taskAtDestination.id);
+        toast.error("Error during task reordering. Please try again.");
+        return;
+      }
+      
       // Update local state immediately (optimistic update)
       setLocalFilteredTasks(newLocalFilteredTasks);
       
@@ -118,6 +127,37 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       }
       
       console.log("Final reordered complete list:", reorderedCompleteList);
+      
+      // Verify all tasks are present in the reordered list
+      if (reorderedCompleteList.length !== allTaskIds.length) {
+        console.error("Error: Reordered list has different number of tasks than original list", 
+          {original: allTaskIds.length, reordered: reorderedCompleteList.length});
+        
+        // Find missing tasks
+        const missingIds = allTaskIds.filter(id => !reorderedCompleteList.includes(id));
+        if (missingIds.length > 0) {
+          console.error("Missing task IDs:", missingIds);
+        }
+        
+        // Find duplicate tasks
+        const dupeMap = new Map();
+        const duplicates = [];
+        reorderedCompleteList.forEach(id => {
+          dupeMap.set(id, (dupeMap.get(id) || 0) + 1);
+          if (dupeMap.get(id) > 1) {
+            duplicates.push(id);
+          }
+        });
+        
+        if (duplicates.length > 0) {
+          console.error("Duplicate task IDs:", [...new Set(duplicates)]);
+        }
+        
+        // Try to recover by using the original list
+        toast.error("Error in reordering. Using original task order.");
+        setLocalFilteredTasks(filteredTasks);
+        return;
+      }
       
       // Update the store (without waiting, but catch errors)
       reorderTasks(

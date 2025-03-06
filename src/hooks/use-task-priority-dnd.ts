@@ -99,6 +99,15 @@ export const useTaskPriorityDnd = () => {
         console.log("Tasks in priority group after reordering:", 
           updatedTasksInPriority.map(t => ({ id: t.id, title: t.title })));
         
+        // Verify the reordered list for correctness
+        const taskAtDestination = updatedTasksInPriority[destination.index];
+        if (taskAtDestination.id !== removedTask.id) {
+          console.error("Error: Task not correctly positioned after reordering. Expected", 
+            removedTask.id, "but found", taskAtDestination.id);
+          toast.error("Error during task reordering. Please try again.");
+          return;
+        }
+        
         // Update all tasks with the new priority group order
         const updatedTasks = newLocalTasks.map(task => {
           if (task.priority === sourcePriorityString) {
@@ -110,6 +119,14 @@ export const useTaskPriorityDnd = () => {
           }
           return task;
         });
+        
+        // Verify all tasks are present and none were accidentally removed
+        if (updatedTasks.length !== newLocalTasks.length) {
+          console.error("Error: Task count mismatch after reordering", 
+            {original: newLocalTasks.length, reordered: updatedTasks.length});
+          toast.error("Error in reordering. Please try again.");
+          return;
+        }
         
         // Update local state immediately
         setLocalTasks(updatedTasks);
@@ -141,13 +158,52 @@ export const useTaskPriorityDnd = () => {
           newPriority: updatedTask.priority
         });
         
+        // Get destination priority group tasks
+        const tasksInDestPriority = newLocalTasks.filter(
+          task => task.priority === destPriorityString
+        );
+        
+        console.log("Tasks in destination priority group before inserting:", 
+          tasksInDestPriority.map(t => ({ id: t.id, title: t.title })));
+        
         // Create new local tasks array for the update
         const updatedTasks = newLocalTasks.map(task => 
           task.id === draggableId ? updatedTask : task
         );
         
+        // Validate the updated task exists in the list and has the correct priority
+        const updatedTaskInList = updatedTasks.find(t => t.id === draggableId);
+        if (!updatedTaskInList || updatedTaskInList.priority !== destPriorityString) {
+          console.error("Error: Task not correctly updated with new priority", {
+            found: updatedTaskInList ? "yes" : "no",
+            priority: updatedTaskInList?.priority
+          });
+          toast.error("Error updating task priority. Please try again.");
+          return;
+        }
+        
+        // Verify all tasks are present and none were accidentally removed
+        if (updatedTasks.length !== newLocalTasks.length) {
+          console.error("Error: Task count mismatch after updating priority", 
+            {original: newLocalTasks.length, updated: updatedTasks.length});
+          toast.error("Error in updating priority. Please try again.");
+          return;
+        }
+        
         // Update local state immediately
         setLocalTasks(updatedTasks);
+        
+        // Group tasks by priority after the update for logging
+        const finalHighPriorityTasks = updatedTasks.filter(task => task.priority === "high");
+        const finalMediumPriorityTasks = updatedTasks.filter(task => task.priority === "medium");
+        const finalLowPriorityTasks = updatedTasks.filter(task => task.priority === "low");
+        
+        console.log("Final task counts by priority:", {
+          high: finalHighPriorityTasks.length,
+          medium: finalMediumPriorityTasks.length,
+          low: finalLowPriorityTasks.length,
+          total: updatedTasks.length
+        });
         
         // Update the store (in background)
         moveTaskBetweenLists(
