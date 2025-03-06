@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -169,6 +168,12 @@ export const useTaskStore = create<TaskState>((set) => ({
         console.warn("Destination task not found in full task list, appending to end");
         actualDestinationIndex = allTasks.length;
       }
+    }
+
+    // If source index was before destination index, the removal shifted positions
+    // But only if both indices refer to the same container (and not during priority changes)
+    if (actualSourceIndex < actualDestinationIndex) {
+      actualDestinationIndex = Math.max(0, actualDestinationIndex - 1);
     }
     
     // Insert the task at the calculated destination position
