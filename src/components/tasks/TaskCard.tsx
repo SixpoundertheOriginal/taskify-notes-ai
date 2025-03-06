@@ -3,11 +3,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar, Clock, Trash, Edit, XCircle, Save } from "lucide-react";
+import { Calendar, Clock, Trash, Edit, XCircle, Save, ChevronDown, ChevronUp } from "lucide-react";
 import { Task } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
 import { formatDistanceToNow } from "date-fns";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +25,7 @@ interface TaskCardProps {
 const TaskCard = ({ task }: TaskCardProps) => {
   const { toggleTaskCompletion, updateTask, deleteTask } = useTaskStore();
   const [isEditing, setIsEditing] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [editedDescription, setEditedDescription] = useState(task.description || "");
 
@@ -42,6 +43,12 @@ const TaskCard = ({ task }: TaskCardProps) => {
     setIsEditing(false);
   };
 
+  const toggleExpand = () => {
+    if (!isEditing) {
+      setIsExpanded(!isExpanded);
+    }
+  };
+
   return (
     <motion.div
       layout
@@ -51,45 +58,71 @@ const TaskCard = ({ task }: TaskCardProps) => {
       transition={{ duration: 0.2 }}
       className="w-full"
     >
-      <Card className={`glass-card overflow-hidden ${task.completed ? "opacity-70" : "opacity-100"}`}>
+      <Card 
+        className={`glass-card overflow-hidden ${task.completed ? "opacity-70" : "opacity-100"} transition-all duration-200 hover:shadow-md cursor-pointer`}
+        onClick={toggleExpand}
+      >
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
-            <Checkbox
-              id={`task-${task.id}`}
-              checked={task.completed}
-              onCheckedChange={() => toggleTaskCompletion(task.id)}
-              className="mt-1"
-            />
+            <div onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                id={`task-${task.id}`}
+                checked={task.completed}
+                onCheckedChange={() => toggleTaskCompletion(task.id)}
+                className="mt-1"
+              />
+            </div>
             
             <div className="flex-1 space-y-2">
-              {isEditing ? (
-                <div className="space-y-3">
+              <div className="flex justify-between items-start">
+                {isEditing ? (
                   <Input
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
                     className="font-medium text-foreground"
                     placeholder="Task title"
+                    onClick={(e) => e.stopPropagation()}
                   />
-                  <Textarea
-                    value={editedDescription}
-                    onChange={(e) => setEditedDescription(e.target.value)}
-                    className="text-sm text-muted-foreground resize-none"
-                    placeholder="Add a description..."
-                    rows={3}
-                  />
-                </div>
-              ) : (
-                <>
+                ) : (
                   <h3 className={`font-medium text-foreground ${task.completed ? "line-through text-muted-foreground" : ""}`}>
                     {task.title}
                   </h3>
-                  {task.description && (
-                    <p className={`text-sm text-muted-foreground ${task.completed ? "line-through" : ""}`}>
-                      {task.description}
-                    </p>
-                  )}
-                </>
-              )}
+                )}
+                <div onClick={(e) => e.stopPropagation()} className="ml-2 flex-shrink-0">
+                  {isExpanded ? 
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" /> : 
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  }
+                </div>
+              </div>
+              
+              <AnimatePresence>
+                {(isExpanded || isEditing) && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {isEditing ? (
+                      <Textarea
+                        value={editedDescription}
+                        onChange={(e) => setEditedDescription(e.target.value)}
+                        className="text-sm text-muted-foreground resize-none mt-2"
+                        placeholder="Add a description..."
+                        rows={3}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      task.description && (
+                        <p className={`text-sm text-muted-foreground mt-2 ${task.completed ? "line-through" : ""}`}>
+                          {task.description}
+                        </p>
+                      )
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
               <div className="flex flex-wrap items-center gap-2 pt-2">
                 <Badge className={`${priorityColors[task.priority]}`}>
@@ -114,51 +147,60 @@ const TaskCard = ({ task }: TaskCardProps) => {
           </div>
         </CardContent>
         
-        <CardFooter className="p-4 pt-0 flex justify-end gap-2">
-          {isEditing ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCancelEdit}
-                className="h-8 px-2 text-xs"
-              >
-                <XCircle className="h-3.5 w-3.5 mr-1" />
-                Cancel
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleSaveEdit}
-                className="h-8 px-2 text-xs"
-              >
-                <Save className="h-3.5 w-3.5 mr-1" />
-                Save
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditing(true)}
-                className="h-8 px-2 text-xs"
-              >
-                <Edit className="h-3.5 w-3.5 mr-1" />
-                Edit
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteTask(task.id)}
-                className="h-8 px-2 text-xs"
-              >
-                <Trash className="h-3.5 w-3.5 mr-1" />
-                Delete
-              </Button>
-            </>
+        <AnimatePresence>
+          {isExpanded && !isEditing && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <CardFooter className="p-4 pt-0 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="h-8 px-2 text-xs"
+                >
+                  <Edit className="h-3.5 w-3.5 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => deleteTask(task.id)}
+                  className="h-8 px-2 text-xs"
+                >
+                  <Trash className="h-3.5 w-3.5 mr-1" />
+                  Delete
+                </Button>
+              </CardFooter>
+            </motion.div>
           )}
-        </CardFooter>
+        </AnimatePresence>
+        
+        {isEditing && (
+          <CardFooter className="p-4 pt-0 flex justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelEdit}
+              className="h-8 px-2 text-xs"
+            >
+              <XCircle className="h-3.5 w-3.5 mr-1" />
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSaveEdit}
+              className="h-8 px-2 text-xs"
+            >
+              <Save className="h-3.5 w-3.5 mr-1" />
+              Save
+            </Button>
+          </CardFooter>
+        )}
       </Card>
     </motion.div>
   );
