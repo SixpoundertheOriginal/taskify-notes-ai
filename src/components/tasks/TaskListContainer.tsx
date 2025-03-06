@@ -1,3 +1,4 @@
+
 import { AnimatePresence } from "framer-motion";
 import { Task } from "@/lib/types";
 import TaskCard from "./TaskCard";
@@ -17,6 +18,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const { tasks: allTasks, reorderTasks } = useTaskStore();
   const [localFilteredTasks, setLocalFilteredTasks] = useState<Task[]>(filteredTasks);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
   const previousStateRef = useRef<Task[]>(filteredTasks);
   
@@ -27,7 +29,12 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     }
   }, [filteredTasks, isSaving]);
 
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
   const handleDragEnd = useCallback(async (result: DropResult) => {
+    setIsDragging(false);
     const { destination, source, draggableId } = result;
     
     if (!destination || 
@@ -48,6 +55,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         return;
       }
       
+      // Add a short delay before updating the state to ensure animations complete
       setTimeout(() => {
         newLocalFilteredTasks.splice(destination.index, 0, removedTask);
         setLocalFilteredTasks(newLocalFilteredTasks);
@@ -107,7 +115,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
 
   return (
     <div className="space-y-4">
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <Droppable droppableId="tasks-list">
           {(provided, snapshot) => (
             <div 
@@ -126,8 +134,8 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className={`mb-4 transition-all duration-200 ease-out ${
-                            snapshot.isDragging ? "opacity-80" : ""
+                          className={`mb-4 task-card ${
+                            snapshot.isDragging ? "opacity-80 scale-105" : ""
                           }`}
                           style={{
                             ...provided.draggableProps.style,
@@ -136,7 +144,11 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                               : 'transform 0.2s ease-out'
                           }}
                         >
-                          <TaskCard key={task.id} task={task} />
+                          <TaskCard 
+                            key={task.id} 
+                            task={task} 
+                            isDragging={snapshot.isDragging}
+                          />
                         </div>
                       )}
                     </Draggable>

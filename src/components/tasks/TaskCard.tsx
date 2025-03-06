@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Clock, ChevronDown, ChevronUp, Bell } from "lucide-react";
+import { Clock, ChevronDown, ChevronUp, Bell, Calendar } from "lucide-react";
 import { Task, Priority, Status } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
 import { formatDistanceToNow } from "date-fns";
@@ -23,9 +23,10 @@ import TaskEditControls from "./TaskEditControls";
 
 interface TaskCardProps {
   task: Task;
+  isDragging?: boolean;
 }
 
-const TaskCard = ({ task }: TaskCardProps) => {
+const TaskCard = ({ task, isDragging = false }: TaskCardProps) => {
   const { 
     toggleTaskCompletion, 
     updateTask, 
@@ -68,6 +69,46 @@ const TaskCard = ({ task }: TaskCardProps) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [editingField, editedTitle, editedDescription]);
+
+  const getPriorityStyles = (priority: Priority) => {
+    switch(priority) {
+      case "high":
+        return {
+          indicator: "bg-red-500",
+          text: "text-red-500",
+          bg: "bg-red-50 dark:bg-red-900/20",
+          border: "border-red-300 dark:border-red-800"
+        };
+      case "medium":
+        return {
+          indicator: "bg-yellow-500",
+          text: "text-yellow-500",
+          bg: "bg-yellow-50 dark:bg-yellow-900/20",
+          border: "border-yellow-300 dark:border-yellow-800"
+        };
+      case "low":
+        return {
+          indicator: "bg-blue-500",
+          text: "text-blue-500",
+          bg: "bg-blue-50 dark:bg-blue-900/20",
+          border: "border-blue-300 dark:border-blue-800"
+        };
+      default:
+        return {
+          indicator: "bg-slate-500",
+          text: "text-slate-500",
+          bg: "bg-slate-50 dark:bg-slate-900/20",
+          border: "border-slate-300 dark:border-slate-800"
+        };
+    }
+  };
+
+  const getStatusIndicator = (status: Status) => {
+    if (status === "in-progress") {
+      return <div className="status-pulse pulse-animation bg-amber-400"></div>;
+    }
+    return null;
+  };
 
   const handleSaveEdit = () => {
     updateTask(task.id, {
@@ -140,6 +181,8 @@ const TaskCard = ({ task }: TaskCardProps) => {
     setEditingField(null);
   };
 
+  const priorityStyles = getPriorityStyles(task.priority);
+
   return (
     <motion.div
       layout
@@ -150,9 +193,16 @@ const TaskCard = ({ task }: TaskCardProps) => {
       className="w-full"
     >
       <Card 
-        className={`glass-card overflow-hidden ${task.completed ? "opacity-70" : "opacity-100"} transition-all duration-200 hover:shadow-md cursor-pointer`}
+        className={`relative glass-card overflow-hidden ${task.completed ? "opacity-70" : "opacity-100"} 
+          transition-all duration-200 hover:shadow-md ${isDragging ? 'shadow-lg' : ''}`}
         onClick={toggleExpand}
       >
+        {/* Priority indicator */}
+        <div className={`priority-indicator ${priorityStyles.indicator}`}></div>
+        
+        {/* Status indicator for in-progress tasks */}
+        {getStatusIndicator(task.status)}
+        
         <CardContent className="p-6">
           <div className="flex items-start gap-4">
             <div onClick={(e) => e.stopPropagation()}>
@@ -192,6 +242,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
                     animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.2 }}
+                    className={isExpanded ? "animate-expand" : ""}
                     data-field="description"
                   >
                     <TaskEditableDescription
@@ -262,6 +313,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
+              className="animate-expand"
             >
               {/* Subtasks section */}
               <div className="px-6 pb-4">
