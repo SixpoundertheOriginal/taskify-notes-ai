@@ -16,6 +16,7 @@ interface TaskStore {
   addNote: (note: Omit<Note, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateNote: (id: string, noteData: Partial<Note>) => void;
   deleteNote: (id: string) => void;
+  updateTaskPriority: (id: string, priority: Task['priority']) => void;
 }
 
 export const useTaskStore = create<TaskStore>((set) => ({
@@ -135,5 +136,11 @@ export const useTaskStore = create<TaskStore>((set) => ({
   
   deleteNote: (id) => set((state) => ({
     notes: state.notes.filter((note) => note.id !== id),
+  })),
+  
+  updateTaskPriority: (id, priority) => set((state) => ({
+    tasks: state.tasks.map((task) =>
+      task.id === id ? { ...task, priority } : task
+    ),
   })),
 }));
