@@ -19,15 +19,18 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     const { source, destination } = result;
     
     // Dropped outside the list or same position
-    if (!destination || 
-       (source.droppableId === destination.droppableId && 
-        source.index === destination.index)) {
+    if (!destination) {
+      return;
+    }
+    
+    // No change in position
+    if (source.droppableId === destination.droppableId && 
+        source.index === destination.index) {
       return;
     }
     
     // In list view, we don't reorder tasks but we can 
     // still update priority based on vertical position
-    // This is just a simple implementation - the higher in the list, the higher priority
     const draggedTask = filteredTasks[source.index];
     
     // When task is moved to the top third of the list
