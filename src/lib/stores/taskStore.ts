@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
@@ -118,8 +119,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   updateTaskPriority: (id, priority, destinationIndex, reorderedIds) => set((state) => {
     console.log('updateTaskPriority called:', { id, priority, destinationIndex, reorderIdsLength: reorderedIds?.length });
     
-    // Create a deep copy of all tasks
-    const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
+    // Create a deep copy of all tasks using immutable approach
+    const allTasks = [...state.tasks];
     
     // Find task by ID - use the stable ID directly
     const taskIndex = allTasks.findIndex(task => task.id === id);
@@ -128,24 +129,32 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return { tasks: state.tasks };
     }
     
-    // Remove the task from its current position
-    const [taskToUpdate] = allTasks.splice(taskIndex, 1);
+    // Remove the task from its current position (immutably)
+    const taskToUpdate = allTasks[taskIndex];
+    const tasksWithoutUpdated = [
+      ...allTasks.slice(0, taskIndex),
+      ...allTasks.slice(taskIndex + 1)
+    ];
     
     // Create an updated version of the task with the new priority
     const updatedTask = { ...taskToUpdate, priority };
     
     // If no reordering info provided, just put it back at the same position
     if (destinationIndex === undefined || !reorderedIds || reorderedIds.length === 0) {
-      allTasks.splice(taskIndex, 0, updatedTask);
+      const updatedTasks = [
+        ...tasksWithoutUpdated.slice(0, taskIndex),
+        updatedTask,
+        ...tasksWithoutUpdated.slice(taskIndex)
+      ];
       console.log("Priority updated without reordering:", { taskId: id, newPriority: priority });
-      return { tasks: allTasks };
+      return { tasks: updatedTasks };
     }
     
     // Apply the entire new order as specified by reorderedIds
     const taskMap = new Map<string, Task>();
     
     // Map all tasks by ID for easy access
-    allTasks.forEach(task => {
+    tasksWithoutUpdated.forEach(task => {
       taskMap.set(task.id, task);
     });
     
@@ -159,14 +168,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     reorderedIds.forEach(taskId => {
       const task = taskMap.get(taskId);
       if (task) {
-        finalTaskOrder.push(task);
+        finalTaskOrder.push({...task});
         taskMap.delete(taskId);
       }
     });
     
     // Add any remaining tasks that weren't in the reorderedIds
     taskMap.forEach(task => {
-      finalTaskOrder.push(task);
+      finalTaskOrder.push({...task});
     });
     
     console.log("Task priority and position updated:", {
@@ -191,7 +200,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // Create a map of all tasks by ID for easy access
     const taskMap = new Map<string, Task>();
     state.tasks.forEach(task => {
-      taskMap.set(task.id, task);
+      taskMap.set(task.id, {...task});
     });
     
     // Create a new task array based on the provided order in reorderedIds
@@ -239,8 +248,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       return { tasks: state.tasks };
     }
 
-    // Create deep copies of tasks
-    const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
+    // Create copies of tasks immutably
+    const allTasks = [...state.tasks];
     
     // Get tasks in the specified priority group
     const tasksInPriorityGroup = allTasks.filter(task => task.priority === priority);
@@ -251,7 +260,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // Map priority group tasks by ID
     const priorityTaskMap = new Map<string, Task>();
     tasksInPriorityGroup.forEach(task => {
-      priorityTaskMap.set(task.id, task);
+      priorityTaskMap.set(task.id, {...task});
     });
     
     // Create the new order for tasks in the priority group
@@ -261,14 +270,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     reorderedIds.forEach(id => {
       const task = priorityTaskMap.get(id);
       if (task) {
-        newPriorityGroupOrder.push(task);
+        newPriorityGroupOrder.push({...task});
         priorityTaskMap.delete(id);
       }
     });
     
     // Add any remaining tasks in the priority group not included in reorderedIds
     priorityTaskMap.forEach(task => {
-      newPriorityGroupOrder.push(task);
+      newPriorityGroupOrder.push({...task});
     });
     
     // Combine with tasks from other priority groups
