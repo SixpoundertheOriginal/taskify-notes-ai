@@ -20,6 +20,7 @@ const TaskForm = () => {
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [date, setDate] = useState<Date | undefined>(undefined);
+  const [reminderTime, setReminderTime] = useState<Date | undefined>(undefined);
   const [isAiMode, setIsAiMode] = useState(false);
   
   const { resetParser } = useAiTaskParser();
@@ -44,6 +45,7 @@ const TaskForm = () => {
       description: description.trim() ? description : undefined,
       priority,
       dueDate: date ? date.toISOString() : undefined,
+      reminderTime: reminderTime ? reminderTime.toISOString() : undefined,
     });
     
     toast.success("Task created successfully");
@@ -56,6 +58,7 @@ const TaskForm = () => {
     setDescription("");
     setPriority("medium");
     setDate(undefined);
+    setReminderTime(undefined);
     resetParser();
   };
 
@@ -113,6 +116,8 @@ const TaskForm = () => {
                   setPriority={setPriority}
                   date={date}
                   setDate={setDate}
+                  reminderTime={reminderTime}
+                  setReminderTime={setReminderTime}
                 />
               </CardContent>
               

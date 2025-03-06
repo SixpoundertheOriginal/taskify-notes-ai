@@ -1,5 +1,5 @@
 
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ interface TaskDetailsFormProps {
   setPriority: (priority: Priority) => void;
   date: Date | undefined;
   setDate: (date: Date | undefined) => void;
+  reminderTime: Date | undefined;
+  setReminderTime: (time: Date | undefined) => void;
 }
 
 const TaskDetailsForm = ({
@@ -31,6 +33,8 @@ const TaskDetailsForm = ({
   setPriority,
   date,
   setDate,
+  reminderTime,
+  setReminderTime,
 }: TaskDetailsFormProps) => {
   return (
     <div className="space-y-4">
@@ -103,6 +107,40 @@ const TaskDetailsForm = ({
             />
           </PopoverContent>
         </Popover>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Reminder (optional)</Label>
+        <div className="flex gap-2">
+          <Input
+            type="time"
+            id="reminder"
+            value={reminderTime ? 
+              `${String(reminderTime.getHours()).padStart(2, '0')}:${String(reminderTime.getMinutes()).padStart(2, '0')}` 
+              : ""}
+            onChange={(e) => {
+              if (e.target.value) {
+                const [hours, minutes] = e.target.value.split(':').map(Number);
+                const newDate = new Date();
+                newDate.setHours(hours, minutes, 0, 0);
+                setReminderTime(newDate);
+              } else {
+                setReminderTime(undefined);
+              }
+            }}
+            className="w-full"
+            placeholder="Set reminder time"
+          />
+          {reminderTime && (
+            <Button 
+              variant="outline" 
+              type="button"
+              onClick={() => setReminderTime(undefined)}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

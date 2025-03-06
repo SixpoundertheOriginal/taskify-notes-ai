@@ -1,9 +1,8 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Bell } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -145,7 +144,6 @@ export const TaskEditablePriority = ({
         value={value}
         onValueChange={(val: string) => {
           onChange(val as Priority);
-          // Auto-save when priority is changed
           setTimeout(onSave, 100);
         }}
         onOpenChange={(open) => {
@@ -166,7 +164,6 @@ export const TaskEditablePriority = ({
     );
   }
 
-  // Import and use PriorityBadge component
   const { PriorityBadge } = require('./TaskBadges');
   return (
     <PriorityBadge 
@@ -200,7 +197,6 @@ export const TaskEditableStatus = ({
         value={value}
         onValueChange={(val: string) => {
           onChange(val as Status);
-          // Auto-save when status is changed
           setTimeout(onSave, 100);
         }}
         onOpenChange={(open) => {
@@ -221,7 +217,6 @@ export const TaskEditableStatus = ({
     );
   }
 
-  // Import and use StatusBadge component
   const { StatusBadge } = require('./TaskBadges');
   return (
     <StatusBadge 
@@ -268,7 +263,6 @@ export const TaskEditableDate = ({
             selected={value}
             onSelect={(date) => {
               onChange(date);
-              // Auto-save when date is selected
               setTimeout(onSave, 100);
             }}
             initialFocus
@@ -297,6 +291,109 @@ export const TaskEditableDate = ({
       >
         <CalendarIcon className="h-3 w-3 mr-1" />
         Add date
+      </Button>
+    )
+  );
+};
+
+interface TaskEditableReminderProps {
+  value: Date | undefined;
+  isEditing: boolean;
+  isCompleted: boolean;
+  onChange: (value: Date | undefined) => void;
+  onStartEditing: (e: React.MouseEvent) => void;
+  onSave: () => void;
+}
+
+export const TaskEditableReminder = ({
+  value,
+  isEditing,
+  isCompleted,
+  onChange,
+  onStartEditing,
+  onSave
+}: TaskEditableReminderProps) => {
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (isEditing) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs font-normal"
+          >
+            <Bell className="h-3.5 w-3.5 mr-1" />
+            {value ? formatTime(value) : "Set reminder"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0 pointer-events-auto" align="start">
+          <div className="p-3">
+            <h4 className="mb-2 text-sm font-medium">Set reminder time</h4>
+            <div className="flex gap-2 items-center">
+              <Input
+                type="time"
+                value={value ? 
+                  `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}` 
+                  : ""}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [hours, minutes] = e.target.value.split(':').map(Number);
+                    const newDate = new Date();
+                    newDate.setHours(hours, minutes, 0, 0);
+                    onChange(newDate);
+                  } else {
+                    onChange(undefined);
+                  }
+                }}
+                className="h-8"
+              />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => onChange(undefined)}
+                className="h-8"
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="mt-3 text-right">
+              <Button 
+                size="sm" 
+                onClick={() => {
+                  onSave();
+                }}
+              >
+                Set Reminder
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
+  return value ? (
+    <div 
+      className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer"
+      onClick={(e) => !isCompleted && onStartEditing(e)}
+    >
+      <Bell className="h-3 w-3" />
+      <span>{formatTime(value)}</span>
+    </div>
+  ) : (
+    !isCompleted && (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-xs"
+        onClick={(e) => onStartEditing(e)}
+      >
+        <Bell className="h-3 w-3 mr-1" />
+        Add reminder
       </Button>
     )
   );

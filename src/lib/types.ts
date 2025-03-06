@@ -16,6 +16,7 @@ export interface Task {
   priority: Priority;
   status: Status;
   dueDate?: string;
+  reminderTime?: string; // New field for storing reminder time
   createdAt: string;
   subtasks?: Subtask[];
 }

@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Clock, ChevronDown, ChevronUp } from "lucide-react";
+import { Clock, ChevronDown, ChevronUp, Bell } from "lucide-react";
 import { Task, Priority, Status } from "@/lib/types";
 import { useTaskStore } from "@/lib/store";
 import { formatDistanceToNow } from "date-fns";
@@ -11,7 +12,8 @@ import {
   TaskEditableDescription, 
   TaskEditablePriority, 
   TaskEditableStatus,
-  TaskEditableDate 
+  TaskEditableDate,
+  TaskEditableReminder 
 } from "./TaskEditableField";
 import TaskSubtaskList from "./TaskSubtaskList";
 import TaskActions from "./TaskActions";
@@ -42,8 +44,11 @@ const TaskCard = ({ task }: TaskCardProps) => {
   const [editedDueDate, setEditedDueDate] = useState<Date | undefined>(
     task.dueDate ? new Date(task.dueDate) : undefined
   );
+  const [editedReminderTime, setEditedReminderTime] = useState<Date | undefined>(
+    task.reminderTime ? new Date(task.reminderTime) : undefined
+  );
 
-  // Handle click outside to save changes for title and description
+  // Handle click outside to save changes
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (editingField === "title" || editingField === "description") {
@@ -69,6 +74,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
       priority: editedPriority,
       status: editedStatus,
       dueDate: editedDueDate?.toISOString(),
+      reminderTime: editedReminderTime?.toISOString(),
     });
     setIsEditing(false);
     setEditingField(null);
@@ -80,6 +86,7 @@ const TaskCard = ({ task }: TaskCardProps) => {
     setEditedPriority(task.priority);
     setEditedStatus(task.status || "todo");
     setEditedDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
+    setEditedReminderTime(task.reminderTime ? new Date(task.reminderTime) : undefined);
     setIsEditing(false);
     setEditingField(null);
   };
@@ -120,6 +127,8 @@ const TaskCard = ({ task }: TaskCardProps) => {
       }
     } else if (field === "dueDate") {
       updateData.dueDate = editedDueDate?.toISOString();
+    } else if (field === "reminderTime") {
+      updateData.reminderTime = editedReminderTime?.toISOString();
     }
 
     if (Object.keys(updateData).length > 0) {
@@ -222,6 +231,15 @@ const TaskCard = ({ task }: TaskCardProps) => {
                   onChange={setEditedDueDate}
                   onStartEditing={(e) => startEditing("dueDate", e)}
                   onSave={() => saveField("dueDate")}
+                />
+                
+                <TaskEditableReminder
+                  value={editedReminderTime}
+                  isEditing={editingField === "reminderTime"}
+                  isCompleted={task.completed}
+                  onChange={setEditedReminderTime}
+                  onStartEditing={(e) => startEditing("reminderTime", e)}
+                  onSave={() => saveField("reminderTime")}
                 />
                 
                 <div className="flex items-center gap-1 text-xs text-muted-foreground ml-auto">
