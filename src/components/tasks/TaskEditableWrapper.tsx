@@ -1,6 +1,6 @@
 
 import { Priority, Status } from "@/lib/types";
-import { PriorityBadge } from "./TaskBadges";
+import { PriorityBadge, StatusBadge } from "./TaskBadges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -61,7 +61,7 @@ export const SafeTaskEditablePriority = ({
     <PriorityBadge 
       priority={value} 
       onClick={onStartEditing} 
-      className={`cursor-pointer hover:opacity-80 ${isCompleted ? "opacity-60" : ""}`} 
+      disabled={isCompleted}
     />
   );
 };

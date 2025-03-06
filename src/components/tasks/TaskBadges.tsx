@@ -18,11 +18,12 @@ interface PriorityBadgeProps {
   priority: Priority;
   onClick?: (e: React.MouseEvent) => void;
   disabled?: boolean;
+  className?: string; // Added className prop
 }
 
-export const PriorityBadge = ({ priority, onClick, disabled }: PriorityBadgeProps) => (
+export const PriorityBadge = ({ priority, onClick, disabled, className }: PriorityBadgeProps) => (
   <Badge 
-    className={`${priorityColors[priority]} ${!disabled ? "cursor-pointer" : ""}`}
+    className={`${priorityColors[priority]} ${!disabled ? "cursor-pointer" : ""} ${className || ""}`}
     onClick={!disabled ? onClick : undefined}
   >
     {priority.charAt(0).toUpperCase() + priority.slice(1)}
@@ -33,11 +34,12 @@ interface StatusBadgeProps {
   status: Status;
   onClick?: (e: React.MouseEvent) => void;
   disabled?: boolean;
+  className?: string; // Added className prop
 }
 
-export const StatusBadge = ({ status, onClick, disabled }: StatusBadgeProps) => (
+export const StatusBadge = ({ status, onClick, disabled, className }: StatusBadgeProps) => (
   <Badge 
-    className={`${statusColors[status]} ${!disabled ? "cursor-pointer" : ""}`}
+    className={`${statusColors[status]} ${!disabled ? "cursor-pointer" : ""} ${className || ""}`}
     onClick={!disabled ? onClick : undefined}
   >
     {status === "todo" ? "To-Do" : 
