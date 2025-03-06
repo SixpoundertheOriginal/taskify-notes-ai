@@ -1,17 +1,11 @@
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import { useTaskStore } from "@/lib/store";
-import TaskCard from "./TaskCard";
+import { Task } from "@/lib/types";
 import TaskForm from "./TaskForm";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, Search, Filter, CalendarCheck, CalendarClock } from "lucide-react";
-import { Priority, Task } from "@/lib/types";
-
-type SortOption = "newest" | "oldest" | "dueDate" | "priority";
-type FilterOption = "all" | "completed" | "active" | Priority;
+import TaskSearch from "./TaskSearch";
+import TaskFilters, { FilterOption, SortOption } from "./TaskFilters";
+import TaskListContainer from "./TaskListContainer";
 
 const TaskList = () => {
   const { tasks } = useTaskStore();
@@ -64,74 +58,25 @@ const TaskList = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search tasks..."
-            className="pl-9"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
+        <TaskSearch 
+          searchQuery={searchQuery} 
+          setSearchQuery={setSearchQuery} 
+        />
         
-        <div className="flex gap-2">
-          <Select value={filterBy} onValueChange={(value) => setFilterBy(value as FilterOption)}>
-            <SelectTrigger className="w-[130px]">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filter" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Tasks</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="high">High Priority</SelectItem>
-              <SelectItem value="medium">Medium Priority</SelectItem>
-              <SelectItem value="low">Low Priority</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-            <SelectTrigger className="w-[130px]">
-              <CalendarCheck className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Newest First</SelectItem>
-              <SelectItem value="oldest">Oldest First</SelectItem>
-              <SelectItem value="dueDate">Due Date</SelectItem>
-              <SelectItem value="priority">Priority</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <TaskFilters
+          filterBy={filterBy}
+          sortBy={sortBy}
+          setFilterBy={setFilterBy}
+          setSortBy={setSortBy}
+        />
       </div>
       
       <TaskForm />
       
-      <div className="space-y-4">
-        {filteredTasks.length > 0 ? (
-          <AnimatePresence>
-            {filteredTasks.map((task) => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </AnimatePresence>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <div className="flex justify-center">
-              <CheckCircle className="h-12 w-12 text-muted-foreground/50" />
-            </div>
-            <h3 className="mt-4 text-lg font-medium">No tasks found</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {tasks.length === 0
-                ? "Start by creating your first task"
-                : "Try adjusting your search or filters"}
-            </p>
-          </motion.div>
-        )}
-      </div>
+      <TaskListContainer 
+        filteredTasks={filteredTasks} 
+        totalTasksCount={tasks.length} 
+      />
     </div>
   );
 };
