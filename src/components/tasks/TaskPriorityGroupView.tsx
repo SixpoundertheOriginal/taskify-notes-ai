@@ -32,8 +32,8 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
       <Droppable droppableId={droppableId} type="TASK">
         {(provided, snapshot) => (
           <div 
-            className={`space-y-4 p-2 rounded-lg transition-colors min-h-[50px] ${
-              snapshot.isDraggingOver ? 'bg-accent/30' : ''
+            className={`space-y-4 p-2 rounded-lg transition-colors min-h-[80px] ${
+              snapshot.isDraggingOver ? 'bg-accent/30 border border-dashed border-primary/30' : ''
             }`}
             ref={provided.innerRef}
             {...provided.droppableProps}
@@ -44,7 +44,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
                   <div
                     ref={provided.innerRef}
                     {...provided.draggableProps}
-                    className={`transition-all ${snapshot.isDragging ? "opacity-80 scale-105" : ""}`}
+                    className={`transition-all mb-4 ${snapshot.isDragging ? "opacity-80 scale-105 z-50" : ""}`}
                   >
                     <div className="flex items-start">
                       <div 
@@ -129,6 +129,11 @@ const TaskPriorityGroupView = () => {
         
         toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
         console.log(`Priority updated to ${newPriority}`);
+      } else {
+        // If staying in same priority group but changing position,
+        // we don't need any special handling as react-beautiful-dnd will
+        // automatically handle the visual reorder
+        console.log(`Task staying in ${priorityMap[source.droppableId]} priority but reordering`);
       }
     } else {
       console.error("Task not found:", source);
@@ -156,26 +161,21 @@ const TaskPriorityGroupView = () => {
           icon={<AlertCircle className="h-5 w-5 text-red-500" />}
         />
         
-        {/* Even if there are no medium priority tasks, we should still render the droppable area */}
-        {highPriorityTasks.length === 0 && mediumPriorityTasks.length === 0 && lowPriorityTasks.length === 0 ? null : (
-          <>
-            <TaskPriorityGroup
-              title="Medium Priority"
-              tasks={mediumPriorityTasks}
-              priority="medium"
-              droppableId="medium-priority"
-              icon={<CircleDot className="h-5 w-5 text-yellow-500" />}
-            />
-            
-            <TaskPriorityGroup
-              title="Low Priority"
-              tasks={lowPriorityTasks}
-              priority="low"
-              droppableId="low-priority"
-              icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
-            />
-          </>
-        )}
+        <TaskPriorityGroup
+          title="Medium Priority"
+          tasks={mediumPriorityTasks}
+          priority="medium"
+          droppableId="medium-priority"
+          icon={<CircleDot className="h-5 w-5 text-yellow-500" />}
+        />
+        
+        <TaskPriorityGroup
+          title="Low Priority"
+          tasks={lowPriorityTasks}
+          priority="low"
+          droppableId="low-priority"
+          icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
+        />
       </DragDropContext>
     </motion.div>
   );

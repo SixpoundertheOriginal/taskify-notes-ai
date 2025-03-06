@@ -14,7 +14,7 @@ interface TaskListContainerProps {
 }
 
 const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainerProps) => {
-  const { updateTaskPriority } = useTaskStore();
+  const { updateTaskPriority, reorderTasks } = useTaskStore();
 
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
@@ -44,26 +44,35 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       tasksList: filteredTasks.map(t => t.title)
     });
     
+    // First, update task position in the store
+    reorderTasks(source.index, destination.index, filteredTasks);
+    
+    // Then, update priority based on new position if needed
+    let newPriority: Task['priority'] | null = null;
+    
     // When task is moved to the top third of the list
     if (destination.index < Math.floor(filteredTasks.length / 3)) {
       if (draggedTask.priority !== 'high') {
-        updateTaskPriority(draggedTask.id, 'high');
-        toast.success(`"${draggedTask.title}" priority updated to high`);
+        newPriority = 'high';
       }
     } 
     // When task is moved to the middle third of the list
     else if (destination.index < Math.floor(filteredTasks.length * 2 / 3)) {
       if (draggedTask.priority !== 'medium') {
-        updateTaskPriority(draggedTask.id, 'medium');
-        toast.success(`"${draggedTask.title}" priority updated to medium`);
+        newPriority = 'medium';
       }
     } 
     // When task is moved to the bottom third of the list
     else {
       if (draggedTask.priority !== 'low') {
-        updateTaskPriority(draggedTask.id, 'low');
-        toast.success(`"${draggedTask.title}" priority updated to low`);
+        newPriority = 'low';
       }
+    }
+    
+    // Update priority if changed
+    if (newPriority) {
+      updateTaskPriority(draggedTask.id, newPriority);
+      toast.success(`"${draggedTask.title}" priority updated to ${newPriority}`);
     }
   };
 
@@ -76,7 +85,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
               <div 
                 ref={provided.innerRef}
                 {...provided.droppableProps}
-                className={`space-y-4 p-2 rounded-lg transition-colors ${
+                className={`space-y-4 p-2 rounded-lg transition-colors min-h-[100px] ${
                   snapshot.isDraggingOver ? 'bg-accent/30' : ''
                 }`}
               >
@@ -87,7 +96,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                         <div
                           ref={provided.innerRef}
                           {...provided.draggableProps}
-                          className={`transition-all ${snapshot.isDragging ? "opacity-80 scale-105" : ""}`}
+                          className={`transition-all mb-4 ${snapshot.isDragging ? "opacity-80 scale-105 z-50" : ""}`}
                         >
                           <div className="flex items-start">
                             <div 

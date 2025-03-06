@@ -17,6 +17,7 @@ interface TaskStore {
   updateNote: (id: string, noteData: Partial<Note>) => void;
   deleteNote: (id: string) => void;
   updateTaskPriority: (id: string, priority: Task['priority']) => void;
+  reorderTasks: (sourceIndex: number, destinationIndex: number, filteredTasks: Task[]) => void;
 }
 
 export const useTaskStore = create<TaskStore>((set) => ({
@@ -143,4 +144,58 @@ export const useTaskStore = create<TaskStore>((set) => ({
       task.id === id ? { ...task, priority } : task
     ),
   })),
+
+  reorderTasks: (sourceIndex, destinationIndex, filteredTasks) => set((state) => {
+    if (
+      sourceIndex < 0 || 
+      destinationIndex < 0 || 
+      sourceIndex >= filteredTasks.length || 
+      destinationIndex >= filteredTasks.length
+    ) {
+      console.error("Invalid source or destination index", { sourceIndex, destinationIndex, taskCount: filteredTasks.length });
+      return { tasks: state.tasks };
+    }
+
+    // Get the task IDs in their current order
+    const taskIds = filteredTasks.map(task => task.id);
+    
+    // Reorder the IDs
+    const draggedId = taskIds[sourceIndex];
+    const newTaskIds = [...taskIds];
+    newTaskIds.splice(sourceIndex, 1);
+    newTaskIds.splice(destinationIndex, 0, draggedId);
+    
+    console.log("Reordering task", {
+      draggedId,
+      oldIndex: sourceIndex,
+      newIndex: destinationIndex,
+      oldOrder: taskIds,
+      newOrder: newTaskIds
+    });
+
+    // Create a new ordered array of tasks based on all tasks
+    const reorderedTasks = [...state.tasks];
+    
+    // Create an index mapping for quick lookup
+    const taskIndexMap = new Map(state.tasks.map((task, index) => [task.id, index]));
+    
+    // Apply the new order (only for tasks in filteredTasks)
+    filteredTasks.forEach((task, idx) => {
+      const originalIndex = taskIndexMap.get(task.id);
+      const newIndex = taskIndexMap.get(newTaskIds[idx]);
+      
+      if (originalIndex !== undefined && newIndex !== undefined) {
+        // Swap positions
+        const temp = reorderedTasks[originalIndex];
+        reorderedTasks[originalIndex] = reorderedTasks[newIndex];
+        reorderedTasks[newIndex] = temp;
+        
+        // Update the map after swapping
+        taskIndexMap.set(reorderedTasks[originalIndex].id, originalIndex);
+        taskIndexMap.set(reorderedTasks[newIndex].id, newIndex);
+      }
+    });
+    
+    return { tasks: reorderedTasks };
+  }),
 }));
