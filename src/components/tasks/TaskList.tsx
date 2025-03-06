@@ -6,6 +6,9 @@ import TaskForm from "./TaskForm";
 import TaskSearch from "./TaskSearch";
 import TaskFilters, { FilterOption, SortOption } from "./TaskFilters";
 import TaskListContainer from "./TaskListContainer";
+import TaskPriorityGroupView from "./TaskPriorityGroupView";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ListFilter, LayersThree } from "lucide-react";
 
 const TaskList = () => {
   const { tasks } = useTaskStore();
@@ -13,6 +16,7 @@ const TaskList = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [filterBy, setFilterBy] = useState<FilterOption>("all");
+  const [viewMode, setViewMode] = useState<"list" | "priority">("list");
 
   useEffect(() => {
     let result = [...tasks];
@@ -63,20 +67,43 @@ const TaskList = () => {
           setSearchQuery={setSearchQuery} 
         />
         
-        <TaskFilters
-          filterBy={filterBy}
-          sortBy={sortBy}
-          setFilterBy={setFilterBy}
-          setSortBy={setSortBy}
-        />
+        <div className="flex gap-2">
+          <Tabs 
+            value={viewMode} 
+            onValueChange={(value) => setViewMode(value as "list" | "priority")}
+            className="mr-2"
+          >
+            <TabsList className="h-9">
+              <TabsTrigger value="list" className="flex items-center gap-1 px-3">
+                <ListFilter className="h-4 w-4" />
+                <span className="hidden sm:inline">List</span>
+              </TabsTrigger>
+              <TabsTrigger value="priority" className="flex items-center gap-1 px-3">
+                <LayersThree className="h-4 w-4" />
+                <span className="hidden sm:inline">By Priority</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          <TaskFilters
+            filterBy={filterBy}
+            sortBy={sortBy}
+            setFilterBy={setFilterBy}
+            setSortBy={setSortBy}
+          />
+        </div>
       </div>
       
       <TaskForm />
       
-      <TaskListContainer 
-        filteredTasks={filteredTasks} 
-        totalTasksCount={tasks.length} 
-      />
+      {viewMode === "list" ? (
+        <TaskListContainer 
+          filteredTasks={filteredTasks} 
+          totalTasksCount={tasks.length} 
+        />
+      ) : (
+        <TaskPriorityGroupView />
+      )}
     </div>
   );
 };
