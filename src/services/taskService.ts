@@ -12,7 +12,7 @@ const prepareTaskForDatabase = (task: Task, position: number) => {
     priority: task.priority,
     status: task.status === 'in-progress' ? 'in_progress' : task.status, // Adjust for database format
     completed: task.completed,
-    due_date: task.dueDate ? new Date(task.dueDate) : null,
+    due_date: task.dueDate ? task.dueDate : null, // Use string directly, not Date object
     position,
   };
 };
@@ -105,19 +105,12 @@ export const fetchTasks = async (): Promise<Task[]> => {
 // Save all tasks to Supabase with their current order
 export const saveTasksOrder = async (tasks: Task[]): Promise<boolean> => {
   try {
-    console.log("Saving task order to Supabase:", tasks.map(t => t.title));
+    console.log("Saving task order to Supabase:", tasks.map(t => ({ id: t.id, title: t.title, position: tasks.indexOf(t) })));
     
-    // Map each task to its new position
-    const taskUpdates = tasks.map((task, index) => ({
-      id: task.id,
-      title: task.title,
-      description: task.description || null,
-      priority: task.priority,
-      status: task.status === 'in-progress' ? 'in_progress' : task.status,
-      completed: task.completed,
-      due_date: task.dueDate ? new Date(task.dueDate) : null,
-      position: index
-    }));
+    // Map each task to its new position using prepareTaskForDatabase
+    const taskUpdates = tasks.map((task, index) => 
+      prepareTaskForDatabase(task, index)
+    );
     
     // Update all tasks with new positions in a batch operation
     const { data, error } = await supabase
@@ -168,7 +161,7 @@ export const createTask = async (task: Omit<Task, 'id' | 'createdAt' | 'complete
         priority: task.priority,
         status: 'todo',
         completed: false,
-        due_date: task.dueDate ? new Date(task.dueDate) : null,
+        due_date: task.dueDate ? task.dueDate : null,
         position
       }])
       .select()
@@ -206,7 +199,7 @@ export const updateTask = async (id: string, taskData: Partial<Task>): Promise<b
       updateData.status = taskData.status === 'in-progress' ? 'in_progress' : taskData.status;
     }
     if (taskData.completed !== undefined) updateData.completed = taskData.completed;
-    if (taskData.dueDate !== undefined) updateData.due_date = taskData.dueDate ? new Date(taskData.dueDate) : null;
+    if (taskData.dueDate !== undefined) updateData.due_date = taskData.dueDate ? taskData.dueDate : null;
     
     // Add updated timestamp
     updateData.updated_at = new Date();

@@ -54,7 +54,7 @@ export const useTaskPriorityDnd = () => {
     console.log("Source priority:", sourcePriorityString);
     console.log("Destination priority:", destPriorityString);
     
-    // Find the task being dragged
+    // Find the task being dragged by ID
     const draggedTask = localTasks.find(task => task.id === draggableId);
     if (!draggedTask) {
       console.error("Could not find task with ID:", draggableId);
@@ -77,13 +77,16 @@ export const useTaskPriorityDnd = () => {
       if (sourcePriorityString === destPriorityString) {
         console.log("Same priority group reordering");
         
-        // Get tasks in this priority group
-        const tasksInPriority = newLocalTasks.filter(task => 
-          task.priority === sourcePriorityString
-        );
+        // Get tasks in this priority group with their original indices for reference
+        const tasksInPriority = newLocalTasks
+          .filter(task => task.priority === sourcePriorityString)
+          .map((task, index) => ({ 
+            ...task, 
+            originalIndex: index // Track original position
+          }));
         
         console.log("Tasks in priority group before reordering:", 
-          tasksInPriority.map(t => ({ id: t.id, title: t.title })));
+          tasksInPriority.map(t => ({ id: t.id, title: t.title, index: t.originalIndex })));
         
         // Create new order for the priority group
         const updatedTasksInPriority = [...tasksInPriority];
@@ -96,15 +99,25 @@ export const useTaskPriorityDnd = () => {
           return;
         }
         
-        console.log("Removed task:", { id: removedTask.id, title: removedTask.title });
+        console.log("Removed task:", { id: removedTask.id, title: removedTask.title, index: removedTask.originalIndex });
         
         // Insert the task at its new position
         updatedTasksInPriority.splice(destination.index, 0, removedTask);
         
-        console.log("Tasks in priority group after reordering:", 
-          updatedTasksInPriority.map(t => ({ id: t.id, title: t.title })));
+        // Ensure each task has the correct index after reordering
+        updatedTasksInPriority.forEach((task, newIndex) => {
+          console.log(`Task ${task.id} (${task.title}) moved from index ${task.originalIndex} to ${newIndex}`);
+        });
         
-        // Verify the reordered list for correctness
+        console.log("Tasks in priority group after reordering:", 
+          updatedTasksInPriority.map((t, idx) => ({ 
+            id: t.id, 
+            title: t.title, 
+            newIndex: idx, 
+            oldIndex: t.originalIndex 
+          })));
+        
+        // Verify the reordered list has the task at the expected position
         const taskAtDestination = updatedTasksInPriority[destination.index];
         if (taskAtDestination.id !== removedTask.id) {
           console.error("Error: Task not correctly positioned after reordering. Expected", 
@@ -114,13 +127,16 @@ export const useTaskPriorityDnd = () => {
           return;
         }
         
+        // Remove the originalIndex property before updating
+        const cleanedTasksInPriority = updatedTasksInPriority.map(({ originalIndex, ...task }) => task);
+        
         // Update all tasks with the new priority group order
         const updatedTasks = newLocalTasks.map(task => {
           if (task.priority === sourcePriorityString) {
             // Replace all tasks in this priority with the reordered ones
-            const indexInPriorityGroup = updatedTasksInPriority.findIndex(t => t.id === task.id);
+            const indexInPriorityGroup = cleanedTasksInPriority.findIndex(t => t.id === task.id);
             if (indexInPriorityGroup !== -1) {
-              return updatedTasksInPriority[indexInPriorityGroup];
+              return cleanedTasksInPriority[indexInPriorityGroup];
             }
           }
           return task;
@@ -139,12 +155,23 @@ export const useTaskPriorityDnd = () => {
         setLocalTasks(updatedTasks);
         
         // Create the list of task IDs in the new order
-        const newTaskIds = updatedTasksInPriority.map(task => task.id);
+        const newTaskIds = cleanedTasksInPriority.map(task => task.id);
         console.log("New task IDs order:", newTaskIds);
         
         // Save the updated order to Supabase
         console.log("Saving reordered tasks to Supabase...");
-        const saveSuccess = await saveTasksOrder(updatedTasks);
+        
+        // Sort the tasks by their position in the priority group
+        const sortedTasks = [...updatedTasks].sort((a, b) => {
+          if (a.priority === sourcePriorityString && b.priority === sourcePriorityString) {
+            return newTaskIds.indexOf(a.id) - newTaskIds.indexOf(b.id);
+          }
+          return 0;
+        });
+        
+        console.log("Final sorted tasks:", sortedTasks.map(t => t.title));
+        
+        const saveSuccess = await saveTasksOrder(sortedTasks);
         
         if (saveSuccess) {
           console.log("Successfully saved task order to Supabase");
@@ -183,7 +210,7 @@ export const useTaskPriorityDnd = () => {
         );
         
         console.log("Tasks in destination priority group before inserting:", 
-          tasksInDestPriority.map(t => ({ id: t.id, title: t.title })));
+          tasksInDestPriority.map((t, idx) => ({ id: t.id, title: t.title, index: idx })));
         
         // Create new local tasks array for the update
         const updatedTasks = newLocalTasks.map(task => 
@@ -211,12 +238,47 @@ export const useTaskPriorityDnd = () => {
           return;
         }
         
+        // Ensure the task is in the correct position in the destination group
+        // First, get all tasks in destination priority (excluding the moved task)
+        const destPriorityTasks = updatedTasks
+          .filter(t => t.priority === destPriorityString && t.id !== draggableId);
+        
+        // Then insert the updated task at the correct position
+        destPriorityTasks.splice(destination.index, 0, updatedTask);
+        
+        // Create a map to track the final position of each task
+        const taskPositions = new Map<string, number>();
+        let positionCounter = 0;
+        
+        // First add all tasks not in destination priority
+        updatedTasks.forEach(task => {
+          if (task.priority !== destPriorityString) {
+            taskPositions.set(task.id, positionCounter++);
+          }
+        });
+        
+        // Then add destination priority tasks in their reordered sequence
+        destPriorityTasks.forEach(task => {
+          taskPositions.set(task.id, positionCounter++);
+        });
+        
+        // Create final sorted tasks array based on position
+        const finalSortedTasks = [...updatedTasks]
+          .sort((a, b) => {
+            const posA = taskPositions.get(a.id) ?? 0;
+            const posB = taskPositions.get(b.id) ?? 0;
+            return posA - posB;
+          });
+        
+        console.log("Final sorted tasks after cross-priority move:", 
+          finalSortedTasks.map(t => ({ id: t.id, title: t.title, priority: t.priority })));
+        
         // Update local state immediately
-        setLocalTasks(updatedTasks);
+        setLocalTasks(finalSortedTasks);
         
         // Save the updated order to Supabase
         console.log("Saving updated tasks to Supabase...");
-        const saveSuccess = await saveTasksOrder(updatedTasks);
+        const saveSuccess = await saveTasksOrder(finalSortedTasks);
         
         if (saveSuccess) {
           console.log("Successfully saved task order to Supabase");
@@ -227,15 +289,15 @@ export const useTaskPriorityDnd = () => {
         }
         
         // Group tasks by priority after the update for logging
-        const finalHighPriorityTasks = updatedTasks.filter(task => task.priority === "high");
-        const finalMediumPriorityTasks = updatedTasks.filter(task => task.priority === "medium");
-        const finalLowPriorityTasks = updatedTasks.filter(task => task.priority === "low");
+        const finalHighPriorityTasks = finalSortedTasks.filter(task => task.priority === "high");
+        const finalMediumPriorityTasks = finalSortedTasks.filter(task => task.priority === "medium");
+        const finalLowPriorityTasks = finalSortedTasks.filter(task => task.priority === "low");
         
         console.log("Final task counts by priority:", {
           high: finalHighPriorityTasks.length,
           medium: finalMediumPriorityTasks.length,
           low: finalLowPriorityTasks.length,
-          total: updatedTasks.length
+          total: finalSortedTasks.length
         });
         
         // Update the store (in background)
