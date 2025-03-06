@@ -18,10 +18,8 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const [localFilteredTasks, setLocalFilteredTasks] = useState<Task[]>(filteredTasks);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Store the previous state for rollback on error
   const previousStateRef = useRef<Task[]>(filteredTasks);
   
-  // Update local state when filtered tasks change, but not during drag operations
   useEffect(() => {
     if (!isSaving) {
       setLocalFilteredTasks(filteredTasks);
@@ -32,7 +30,6 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const handleDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     
-    // If there's no destination or dropped in the same position, do nothing
     if (!destination || 
         (destination.droppableId === source.droppableId && 
          destination.index === source.index)) {
@@ -40,11 +37,9 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     }
     
     try {
-      // Store current state for potential rollback
       const previousState = [...localFilteredTasks];
       previousStateRef.current = previousState;
       
-      // Create optimistic update
       const newLocalFilteredTasks = [...localFilteredTasks];
       const [removedTask] = newLocalFilteredTasks.splice(source.index, 1);
       
@@ -53,12 +48,12 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         return;
       }
       
-      // Apply optimistic update immediately
-      newLocalFilteredTasks.splice(destination.index, 0, removedTask);
-      setLocalFilteredTasks(newLocalFilteredTasks);
-      setIsSaving(true);
+      setTimeout(() => {
+        newLocalFilteredTasks.splice(destination.index, 0, removedTask);
+        setLocalFilteredTasks(newLocalFilteredTasks);
+        setIsSaving(true);
+      }, 50);
       
-      // Create reordered complete list maintaining order of non-filtered tasks
       const filteredTaskIds = newLocalFilteredTasks.map(task => task.id);
       const filteredIdsSet = new Set(filteredTaskIds);
       const allTaskIds = allTasks.map(task => task.id);
@@ -66,7 +61,6 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       const reorderedCompleteList = allTaskIds
         .filter(id => !filteredIdsSet.has(id));
       
-      // Insert filtered tasks at their new positions
       for (const filteredId of filteredTaskIds) {
         const filteredIndex = filteredTaskIds.indexOf(filteredId);
         let insertionIndex = 0;
@@ -80,7 +74,6 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         reorderedCompleteList.splice(insertionIndex, 0, filteredId);
       }
       
-      // Update store immediately for smooth transitions
       reorderTasks(
         draggableId,
         source.index,
@@ -88,12 +81,9 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         reorderedCompleteList
       );
       
-      // Send update to backend without blocking UI
-      // Use Promise handling instead of EdgeRuntime.waitUntil
       saveTasksOrder(allTasks)
         .catch(error => {
           console.error("Background save failed:", error);
-          // Revert to previous state on error
           setLocalFilteredTasks(previousStateRef.current);
           reorderTasks(
             draggableId,
@@ -106,14 +96,12 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       
     } catch (error) {
       console.error("Error during drag and drop:", error);
-      // Revert to previous state on error
       setLocalFilteredTasks(previousStateRef.current);
       toast.error("Failed to update task position");
     } finally {
-      // Clear saving state after a short delay to ensure smooth transition
       setTimeout(() => {
         setIsSaving(false);
-      }, 100);
+      }, 200);
     }
   }, [localFilteredTasks, allTasks, reorderTasks]);
 
@@ -123,7 +111,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         <Droppable droppableId="tasks-list">
           {(provided, snapshot) => (
             <div 
-              className={`space-y-4 p-2 rounded-lg min-h-[100px] transition-colors ${
+              className={`space-y-4 p-2 rounded-lg min-h-[100px] transition-all duration-200 ${
                 snapshot.isDraggingOver ? "bg-accent/20" : ""
               } ${isSaving ? "opacity-70" : ""}`}
               ref={provided.innerRef}
@@ -138,11 +126,14 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                           ref={provided.innerRef}
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
-                          className={`mb-4 transition-opacity ${
+                          className={`mb-4 transition-all duration-200 ease-out ${
                             snapshot.isDragging ? "opacity-80" : ""
                           }`}
                           style={{
                             ...provided.draggableProps.style,
+                            transition: snapshot.isDragging 
+                              ? undefined 
+                              : 'transform 0.2s ease-out'
                           }}
                         >
                           <TaskCard key={task.id} task={task} />
