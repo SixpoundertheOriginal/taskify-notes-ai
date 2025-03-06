@@ -1,3 +1,4 @@
+
 import { AnimatePresence } from "framer-motion";
 import { Task } from "@/lib/types";
 import TaskCard from "./TaskCard";
@@ -15,65 +16,53 @@ interface TaskListContainerProps {
 
 const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainerProps) => {
   const { tasks: allTasks, reorderTasks } = useTaskStore();
-  
   const [localFilteredTasks, setLocalFilteredTasks] = useState<Task[]>(filteredTasks);
   const [isSaving, setIsSaving] = useState(false);
-  const pendingTasksRef = useRef<Task[] | null>(null);
   
-  // Prevent filtered tasks updates during drag operation
+  // Store the previous state for rollback on error
+  const previousStateRef = useRef<Task[]>(filteredTasks);
+  
+  // Update local state when filtered tasks change, but not during drag operations
   useEffect(() => {
-    if (!isSaving && !pendingTasksRef.current) {
+    if (!isSaving) {
       setLocalFilteredTasks(filteredTasks);
+      previousStateRef.current = filteredTasks;
     }
   }, [filteredTasks, isSaving]);
 
   const handleDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     
-    // Early return conditions
-    if (!destination) {
-      pendingTasksRef.current = null;
-      return;
-    }
-    
-    if (destination.droppableId === source.droppableId && 
-        destination.index === source.index) {
-      pendingTasksRef.current = null;
+    if (!destination || 
+        (destination.droppableId === source.droppableId && 
+         destination.index === source.index)) {
       return;
     }
     
     try {
-      // Create a new copy of the filtered tasks for the optimistic update
+      // Store current state for potential rollback
+      const previousState = [...localFilteredTasks];
+      previousStateRef.current = previousState;
+      
+      // Create optimistic update
       const newLocalFilteredTasks = [...localFilteredTasks];
       const [removedTask] = newLocalFilteredTasks.splice(source.index, 1);
       
       if (!removedTask) {
         console.error("Could not find task at source index:", source.index);
-        pendingTasksRef.current = null;
         return;
       }
       
-      // Insert the task at the destination immediately
+      // Apply optimistic update immediately
       newLocalFilteredTasks.splice(destination.index, 0, removedTask);
-      
-      // Store the pending tasks in the ref BEFORE any state updates
-      pendingTasksRef.current = newLocalFilteredTasks;
-      
-      // Set saving state to prevent filtered tasks updates
+      setLocalFilteredTasks(newLocalFilteredTasks);
       setIsSaving(true);
       
-      // Immediately update local state for smooth visual transition
-      setLocalFilteredTasks(newLocalFilteredTasks);
-      
-      // Create reordered complete list with optimistic update
-      const taskIdToFullListIndex = new Map();
-      allTasks.forEach((task, index) => taskIdToFullListIndex.set(task.id, index));
-      
+      // Create reordered complete list maintaining order of non-filtered tasks
       const filteredTaskIds = newLocalFilteredTasks.map(task => task.id);
       const filteredIdsSet = new Set(filteredTaskIds);
       const allTaskIds = allTasks.map(task => task.id);
       
-      // Build the reordered list maintaining the order of non-filtered tasks
       const reorderedCompleteList = allTaskIds
         .filter(id => !filteredIdsSet.has(id));
       
@@ -99,22 +88,40 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         reorderedCompleteList
       );
       
-      // Save to backend without blocking the UI
-      await saveTasksOrder(allTasks);
+      // Send update to backend without blocking UI
+      const savePromise = saveTasksOrder(allTasks);
+      
+      // Use EdgeRuntime.waitUntil for background processing if available
+      if (typeof EdgeRuntime !== 'undefined') {
+        EdgeRuntime.waitUntil(savePromise);
+      } else {
+        // If not in edge runtime, handle normally but still don't block UI
+        savePromise.catch(error => {
+          console.error("Background save failed:", error);
+          // Revert to previous state on error
+          setLocalFilteredTasks(previousStateRef.current);
+          reorderTasks(
+            draggableId,
+            destination.index,
+            source.index,
+            allTaskIds
+          );
+          toast.error("Failed to save task order");
+        });
+      }
       
     } catch (error) {
       console.error("Error during drag and drop:", error);
-      // Revert optimistic update on error
-      setLocalFilteredTasks(filteredTasks);
+      // Revert to previous state on error
+      setLocalFilteredTasks(previousStateRef.current);
       toast.error("Failed to update task position");
     } finally {
-      // Clear pending state after a short delay to ensure smooth transition
+      // Clear saving state after a short delay to ensure smooth transition
       setTimeout(() => {
-        pendingTasksRef.current = null;
         setIsSaving(false);
       }, 100);
     }
-  }, [localFilteredTasks, filteredTasks, allTasks, reorderTasks]);
+  }, [localFilteredTasks, allTasks, reorderTasks]);
 
   return (
     <div className="space-y-4">
