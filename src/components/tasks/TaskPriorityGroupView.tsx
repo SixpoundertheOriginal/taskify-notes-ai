@@ -22,7 +22,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
   if (tasks.length === 0) return null;
 
   const handleDragEnd = useCallback((result: DropResult) => {
-    const { destination, source } = result;
+    const { destination, source, draggableId } = result;
     
     // If there's no destination or the item was dropped in the same position
     if (!destination || 
@@ -40,8 +40,9 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupPr
     newTaskIds.splice(destination.index, 0, movedTaskId);
     
     // Update the store with new order
+    // Use the stable draggableId instead of relying on the index
     reorderTasksInPriorityGroup(
-      movedTaskId,
+      draggableId, // Using the draggableId (task ID) directly
       priority,
       source.index,
       destination.index,

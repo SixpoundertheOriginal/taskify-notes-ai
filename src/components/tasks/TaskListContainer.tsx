@@ -16,7 +16,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const { reorderTasks } = useTaskStore();
 
   const handleDragEnd = useCallback((result: DropResult) => {
-    const { destination, source } = result;
+    const { destination, source, draggableId } = result;
     
     // If there's no destination or the item was dropped in the same position
     if (!destination || 
@@ -34,8 +34,9 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     newTaskIds.splice(destination.index, 0, movedTaskId);
     
     // Update the store with new order
+    // Use the stable draggableId instead of relying on the index
     reorderTasks(
-      movedTaskId,
+      draggableId, // Using the draggableId (task ID) instead of referencing by index
       source.index,
       destination.index,
       newTaskIds

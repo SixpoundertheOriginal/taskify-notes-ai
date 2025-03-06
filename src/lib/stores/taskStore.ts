@@ -119,7 +119,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     // Create a deep copy of all tasks
     const allTasks = JSON.parse(JSON.stringify(state.tasks)) as Task[];
     
-    // Find task by ID 
+    // Find task by ID - use the stable ID directly
     const taskIndex = allTasks.findIndex(task => task.id === id);
     if (taskIndex === -1) {
       console.error("Task not found for priority update:", id);
