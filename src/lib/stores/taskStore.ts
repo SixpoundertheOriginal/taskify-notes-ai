@@ -1,10 +1,23 @@
+
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Task, Priority, Status, Subtask } from '../types';
 import { demoTasks } from '../demoData';
+import { 
+  createTask as createTaskInSupabase,
+  updateTask as updateTaskInSupabase,
+  deleteTask as deleteTaskInSupabase,
+  addSubtask as addSubtaskInSupabase,
+  updateSubtask as updateSubtaskInSupabase,
+  deleteSubtask as deleteSubtaskInSupabase,
+  saveTasksOrder
+} from '@/services/taskService';
 
 interface TaskState {
   tasks: Task[];
+  
+  // Tasks array management
+  setTasks: (tasks: Task[]) => void;
   
   // Task CRUD operations
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'status' | 'subtasks'>) => void;
@@ -31,104 +44,199 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   // Initialize with demo tasks
   tasks: demoTasks,
   
-  addTask: (task) => set((state) => ({
-    tasks: [
-      ...state.tasks,
-      {
-        ...task,
-        id: uuidv4(),
-        completed: false,
-        status: 'todo',
-        subtasks: [],
-        createdAt: new Date().toISOString(),
-      },
-    ],
-  })),
+  // Set all tasks (used when loading from Supabase)
+  setTasks: (tasks) => set({ tasks }),
   
-  toggleTaskCompletion: (id) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === id ? { 
-        ...task, 
-        completed: !task.completed,
-        status: !task.completed ? 'completed' : 'todo'
-      } : task
-    ),
-  })),
+  addTask: async (task) => {
+    // Create a local task object with a temporary ID
+    const newTask: Task = {
+      ...task,
+      id: uuidv4(), // Temporary ID that will be replaced with the one from Supabase
+      completed: false,
+      status: 'todo',
+      subtasks: [],
+      createdAt: new Date().toISOString(),
+    };
+    
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: [...state.tasks, newTask],
+    }));
+    
+    // Create the task in Supabase
+    const createdTask = await createTaskInSupabase(task);
+    
+    if (createdTask) {
+      // Update the local state with the task from Supabase
+      set((state) => ({
+        tasks: state.tasks.map((t) => 
+          t.id === newTask.id ? createdTask : t
+        ),
+      }));
+    }
+  },
   
-  updateTask: (id, taskData) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === id ? { ...task, ...taskData } : task
-    ),
-  })),
+  toggleTaskCompletion: async (id) => {
+    // Get the current task state before toggling
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task) return;
+    
+    const newCompletedState = !task.completed;
+    const newStatus = newCompletedState ? 'completed' : 'todo';
+    
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === id ? { 
+          ...task, 
+          completed: newCompletedState,
+          status: newStatus
+        } : task
+      ),
+    }));
+    
+    // Update in Supabase
+    await updateTaskInSupabase(id, { 
+      completed: newCompletedState,
+      status: newStatus
+    });
+  },
   
-  deleteTask: (id) => set((state) => ({
-    tasks: state.tasks.filter((task) => task.id !== id),
-  })),
-
-  addSubtask: (taskId, subtaskTitle) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === taskId ? {
-        ...task,
-        subtasks: [
-          ...(task.subtasks || []),
-          {
-            id: uuidv4(),
-            title: subtaskTitle,
-            completed: false
-          }
-        ]
-      } : task
-    ),
-  })),
-
-  toggleSubtaskCompletion: (taskId, subtaskId) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === taskId ? {
-        ...task,
-        subtasks: task.subtasks?.map((subtask) =>
-          subtask.id === subtaskId ? {
-            ...subtask,
-            completed: !subtask.completed
-          } : subtask
-        )
-      } : task
-    ),
-  })),
-
-  updateSubtask: (taskId, subtaskId, title) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === taskId ? {
-        ...task,
-        subtasks: task.subtasks?.map((subtask) =>
-          subtask.id === subtaskId ? {
-            ...subtask,
-            title
-          } : subtask
-        )
-      } : task
-    ),
-  })),
-
-  deleteSubtask: (taskId, subtaskId) => set((state) => ({
-    tasks: state.tasks.map((task) =>
-      task.id === taskId ? {
-        ...task,
-        subtasks: task.subtasks?.filter((subtask) => subtask.id !== subtaskId)
-      } : task
-    ),
-  })),
+  updateTask: async (id, taskData) => {
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === id ? { ...task, ...taskData } : task
+      ),
+    }));
+    
+    // Update in Supabase
+    await updateTaskInSupabase(id, taskData);
+  },
   
-  updateTaskPriority: (id, priority, destinationIndex, reorderedIds) => set((state) => {
+  deleteTask: async (id) => {
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.filter((task) => task.id !== id),
+    }));
+    
+    // Delete from Supabase
+    await deleteTaskInSupabase(id);
+  },
+
+  addSubtask: async (taskId, subtaskTitle) => {
+    const tempSubtaskId = uuidv4();
+    
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId ? {
+          ...task,
+          subtasks: [
+            ...(task.subtasks || []),
+            {
+              id: tempSubtaskId,
+              title: subtaskTitle,
+              completed: false
+            }
+          ]
+        } : task
+      ),
+    }));
+    
+    // Add to Supabase
+    const createdSubtask = await addSubtaskInSupabase(taskId, subtaskTitle);
+    
+    if (createdSubtask) {
+      // Update with the actual subtask from Supabase
+      set((state) => ({
+        tasks: state.tasks.map((task) =>
+          task.id === taskId ? {
+            ...task,
+            subtasks: task.subtasks?.map(subtask => 
+              subtask.id === tempSubtaskId ? createdSubtask : subtask
+            )
+          } : task
+        ),
+      }));
+    }
+  },
+
+  toggleSubtaskCompletion: async (taskId, subtaskId) => {
+    // Get current state
+    const task = get().tasks.find(t => t.id === taskId);
+    if (!task || !task.subtasks) return;
+    
+    const subtask = task.subtasks.find(s => s.id === subtaskId);
+    if (!subtask) return;
+    
+    const newCompletedState = !subtask.completed;
+    
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId ? {
+          ...task,
+          subtasks: task.subtasks?.map((subtask) =>
+            subtask.id === subtaskId ? {
+              ...subtask,
+              completed: newCompletedState
+            } : subtask
+          )
+        } : task
+      ),
+    }));
+    
+    // Update in Supabase
+    await updateSubtaskInSupabase(subtaskId, { completed: newCompletedState });
+  },
+
+  updateSubtask: async (taskId, subtaskId, title) => {
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId ? {
+          ...task,
+          subtasks: task.subtasks?.map((subtask) =>
+            subtask.id === subtaskId ? {
+              ...subtask,
+              title
+            } : subtask
+          )
+        } : task
+      ),
+    }));
+    
+    // Update in Supabase
+    await updateSubtaskInSupabase(subtaskId, { title });
+  },
+
+  deleteSubtask: async (taskId, subtaskId) => {
+    // Optimistically update the UI
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId ? {
+          ...task,
+          subtasks: task.subtasks?.filter((subtask) => subtask.id !== subtaskId)
+        } : task
+      ),
+    }));
+    
+    // Delete from Supabase
+    await deleteSubtaskInSupabase(subtaskId);
+  },
+  
+  updateTaskPriority: async (id, priority, destinationIndex, reorderedIds) => {
     console.log('updateTaskPriority called:', { id, priority, destinationIndex, reorderIdsLength: reorderedIds?.length });
     
     // Create a deep copy of all tasks using immutable approach
-    const allTasks = [...state.tasks];
+    const allTasks = [...get().tasks];
     
     // Find task by ID - use the stable ID directly
     const taskIndex = allTasks.findIndex(task => task.id === id);
     if (taskIndex === -1) {
       console.error("Task not found for priority update:", id);
-      return { tasks: state.tasks };
+      return;
     }
     
     // Remove the task from its current position (immutably)
@@ -149,7 +257,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         ...tasksWithoutUpdated.slice(taskIndex)
       ];
       console.log("Priority updated without reordering:", { taskId: id, newPriority: priority });
-      return { tasks: updatedTasks };
+      
+      // Update state
+      set({ tasks: updatedTasks });
+      
+      // Update in Supabase
+      await updateTaskInSupabase(id, { priority });
+      return;
     }
     
     // Apply the entire new order as specified by reorderedIds
@@ -188,20 +302,27 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         .map(t => t.title)
     });
     
-    return { tasks: finalTaskOrder };
-  }),
+    // Update state
+    set({ tasks: finalTaskOrder });
+    
+    // Update task priority in Supabase
+    await updateTaskInSupabase(id, { priority });
+    
+    // Save the new task order
+    await saveTasksOrder(finalTaskOrder);
+  },
 
-  reorderTasks: (taskId, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
+  reorderTasks: async (taskId, sourceIndex, destinationIndex, reorderedIds) => {
     console.log('reorderTasks called:', { taskId, sourceIndex, destinationIndex, reorderIdsLength: reorderedIds?.length });
     
     if (!reorderedIds || reorderedIds.length === 0) {
       console.error("No reordered IDs provided for task reordering");
-      return { tasks: state.tasks };
+      return;
     }
 
     // Create a map of all tasks by ID for easy access
     const taskMap = new Map<string, Task>();
-    state.tasks.forEach(task => {
+    get().tasks.forEach(task => {
       taskMap.set(task.id, {...task});
     });
     
@@ -233,10 +354,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       resultingTitles: newTasksOrder.map(t => t.title)
     });
     
-    return { tasks: newTasksOrder };
-  }),
+    // Update state
+    set({ tasks: newTasksOrder });
+    
+    // Save the new task order to Supabase
+    await saveTasksOrder(newTasksOrder);
+  },
 
-  reorderTasksInPriorityGroup: (taskId, priority, sourceIndex, destinationIndex, reorderedIds) => set((state) => {
+  reorderTasksInPriorityGroup: async (taskId, priority, sourceIndex, destinationIndex, reorderedIds) => {
     console.log('reorderTasksInPriorityGroup called:', { 
       taskId, 
       priority, 
@@ -247,11 +372,11 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     
     if (!reorderedIds || reorderedIds.length === 0) {
       console.error("No reordered IDs provided for task reordering in priority group");
-      return { tasks: state.tasks };
+      return;
     }
 
     // Create copies of tasks immutably
-    const allTasks = [...state.tasks];
+    const allTasks = [...get().tasks];
     
     // Get tasks in the specified priority group
     const tasksInPriorityGroup = allTasks.filter(task => task.priority === priority);
@@ -294,10 +419,14 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       resultingTitles: newPriorityGroupOrder.map(t => t.title)
     });
     
-    return { tasks: newTasksOrder };
-  }),
+    // Update state
+    set({ tasks: newTasksOrder });
+    
+    // Save the new task order to Supabase
+    await saveTasksOrder(newTasksOrder);
+  },
 
-  moveTaskBetweenLists: (taskId, sourcePriority, targetPriority, sourceIndex, destinationIndex) => set((state) => {
+  moveTaskBetweenLists: async (taskId, sourcePriority, targetPriority, sourceIndex, destinationIndex) => {
     console.log('moveTaskBetweenLists called:', { 
       taskId, 
       sourcePriority, 
@@ -307,10 +436,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     });
     
     // Find the task to move
-    const taskToMove = state.tasks.find(task => task.id === taskId);
+    const taskToMove = get().tasks.find(task => task.id === taskId);
     if (!taskToMove) {
       console.error("Task not found for cross-list move:", taskId);
-      return { tasks: state.tasks };
+      return;
     }
     
     // Create an updated version of the task with the new priority
@@ -318,7 +447,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     
     // Create a new immutable array of tasks with the task removed from its current position
     // and updated with the new priority
-    const updatedTasks = state.tasks.map(task => 
+    const updatedTasks = get().tasks.map(task => 
       task.id === taskId ? updatedTask : task
     );
     
@@ -366,6 +495,13 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       resultingTargetPriorityTasks: updatedTargetPriorityTasks.map(t => t.title)
     });
     
-    return { tasks: finalTasksOrder };
-  }),
+    // Update state
+    set({ tasks: finalTasksOrder });
+    
+    // Update task priority in Supabase
+    await updateTaskInSupabase(taskId, { priority: targetPriority });
+    
+    // Save the new task order
+    await saveTasksOrder(finalTasksOrder);
+  },
 }));

@@ -4,12 +4,14 @@ import { DropResult } from "react-beautiful-dnd";
 import { Task, Priority } from "@/lib/types";
 import { toast } from "sonner";
 import { useTaskStore } from "@/lib/store";
+import { saveTasksOrder } from "@/services/taskService";
 
 export const useTaskPriorityDnd = () => {
   const { tasks, reorderTasksInPriorityGroup, moveTaskBetweenLists } = useTaskStore();
   
   // Add local state to track optimistic UI updates
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Update local tasks when store tasks change
   useEffect(() => {
@@ -17,7 +19,7 @@ export const useTaskPriorityDnd = () => {
   }, [tasks]);
   
   // Handle drag and drop operations with optimistic updates
-  const handleDragEnd = useCallback((result: DropResult) => {
+  const handleDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     
     console.log("Priority Group View - Drag end event:", { 
@@ -68,6 +70,8 @@ export const useTaskPriorityDnd = () => {
     // Create a deep copy of current tasks for optimistic update
     const newLocalTasks = [...localTasks];
     
+    setIsSaving(true);
+    
     try {
       // Apply optimistic update to local state first
       if (sourcePriorityString === destPriorityString) {
@@ -88,6 +92,7 @@ export const useTaskPriorityDnd = () => {
         const [removedTask] = updatedTasksInPriority.splice(source.index, 1);
         if (!removedTask) {
           console.error("Could not find task at source index:", source.index);
+          setIsSaving(false);
           return;
         }
         
@@ -105,6 +110,7 @@ export const useTaskPriorityDnd = () => {
           console.error("Error: Task not correctly positioned after reordering. Expected", 
             removedTask.id, "but found", taskAtDestination.id);
           toast.error("Error during task reordering. Please try again.");
+          setIsSaving(false);
           return;
         }
         
@@ -125,6 +131,7 @@ export const useTaskPriorityDnd = () => {
           console.error("Error: Task count mismatch after reordering", 
             {original: newLocalTasks.length, reordered: updatedTasks.length});
           toast.error("Error in reordering. Please try again.");
+          setIsSaving(false);
           return;
         }
         
@@ -134,6 +141,18 @@ export const useTaskPriorityDnd = () => {
         // Create the list of task IDs in the new order
         const newTaskIds = updatedTasksInPriority.map(task => task.id);
         console.log("New task IDs order:", newTaskIds);
+        
+        // Save the updated order to Supabase
+        console.log("Saving reordered tasks to Supabase...");
+        const saveSuccess = await saveTasksOrder(updatedTasks);
+        
+        if (saveSuccess) {
+          console.log("Successfully saved task order to Supabase");
+          toast.success("Task order updated");
+        } else {
+          console.error("Failed to save task order to Supabase");
+          toast.error("Failed to save task order to database");
+        }
         
         // Update the store (in background)
         reorderTasksInPriorityGroup(
@@ -179,6 +198,7 @@ export const useTaskPriorityDnd = () => {
             priority: updatedTaskInList?.priority
           });
           toast.error("Error updating task priority. Please try again.");
+          setIsSaving(false);
           return;
         }
         
@@ -187,11 +207,24 @@ export const useTaskPriorityDnd = () => {
           console.error("Error: Task count mismatch after updating priority", 
             {original: newLocalTasks.length, updated: updatedTasks.length});
           toast.error("Error in updating priority. Please try again.");
+          setIsSaving(false);
           return;
         }
         
         // Update local state immediately
         setLocalTasks(updatedTasks);
+        
+        // Save the updated order to Supabase
+        console.log("Saving updated tasks to Supabase...");
+        const saveSuccess = await saveTasksOrder(updatedTasks);
+        
+        if (saveSuccess) {
+          console.log("Successfully saved task order to Supabase");
+          toast.success("Task order updated");
+        } else {
+          console.error("Failed to save task order to Supabase");
+          toast.error("Failed to save task order to database");
+        }
         
         // Group tasks by priority after the update for logging
         const finalHighPriorityTasks = updatedTasks.filter(task => task.priority === "high");
@@ -223,6 +256,8 @@ export const useTaskPriorityDnd = () => {
       
       // Show error notification
       toast.error("Failed to update task position. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   }, [localTasks, tasks, reorderTasksInPriorityGroup, moveTaskBetweenLists]);
 
@@ -240,6 +275,7 @@ export const useTaskPriorityDnd = () => {
     mediumPriorityTasks,
     lowPriorityTasks,
     hasTasks,
-    handleDragEnd
+    handleDragEnd,
+    isSaving
   };
 };

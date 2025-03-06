@@ -8,16 +8,69 @@ import TaskFilters, { FilterOption, SortOption } from "./TaskFilters";
 import TaskListContainer from "./TaskListContainer";
 import TaskPriorityGroupView from "./TaskPriorityGroupView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ListFilter, Layers } from "lucide-react";
+import { ListFilter, Layers, RefreshCw } from "lucide-react";
+import { fetchTasks, subscribeToTaskUpdates } from "@/services/taskService";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 const TaskList = () => {
-  const { tasks } = useTaskStore();
+  const { tasks, setTasks } = useTaskStore();
   const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [filterBy, setFilterBy] = useState<FilterOption>("all");
   const [viewMode, setViewMode] = useState<"list" | "priority">("list");
+  const [isLoading, setIsLoading] = useState(false);
 
+  // Load tasks from Supabase on component mount
+  useEffect(() => {
+    const loadTasks = async () => {
+      setIsLoading(true);
+      try {
+        const supabaseTasks = await fetchTasks();
+        if (supabaseTasks.length > 0) {
+          setTasks(supabaseTasks);
+          console.log("Loaded tasks from Supabase:", supabaseTasks.map(t => t.title));
+        } else {
+          console.log("No tasks found in Supabase, using demo tasks");
+        }
+      } catch (error) {
+        console.error("Error loading tasks:", error);
+        toast.error("Failed to load tasks");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadTasks();
+    
+    // Subscribe to real-time updates
+    const unsubscribe = subscribeToTaskUpdates(() => {
+      console.log("Received real-time update, refreshing tasks");
+      loadTasks();
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [setTasks]);
+
+  // Handle manual refresh
+  const handleRefresh = async () => {
+    setIsLoading(true);
+    try {
+      const supabaseTasks = await fetchTasks();
+      setTasks(supabaseTasks);
+      toast.success("Tasks refreshed");
+    } catch (error) {
+      console.error("Error refreshing tasks:", error);
+      toast.error("Failed to refresh tasks");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Apply filters and sorting to tasks
   useEffect(() => {
     let result = [...tasks];
     
@@ -84,6 +137,17 @@ const TaskList = () => {
               </TabsTrigger>
             </TabsList>
           </Tabs>
+          
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={handleRefresh} 
+            disabled={isLoading}
+            className="h-9 w-9"
+            title="Refresh tasks"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
           
           <TaskFilters
             filterBy={filterBy}

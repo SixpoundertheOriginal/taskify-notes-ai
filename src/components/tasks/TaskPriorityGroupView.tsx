@@ -1,55 +1,51 @@
 
-import { motion } from "framer-motion";
-import { AlertCircle, ArrowDown, CircleDot } from "lucide-react";
-import TaskEmptyState from "./TaskEmptyState";
-import { DragDropContext } from "react-beautiful-dnd";
+import { DragDropContext, Droppable } from "react-beautiful-dnd";
 import TaskPriorityGroup from "./TaskPriorityGroup";
 import { useTaskPriorityDnd } from "@/hooks/use-task-priority-dnd";
 
 const TaskPriorityGroupView = () => {
-  const {
-    highPriorityTasks,
-    mediumPriorityTasks,
-    lowPriorityTasks,
-    hasTasks,
-    handleDragEnd
+  const { 
+    highPriorityTasks, 
+    mediumPriorityTasks, 
+    lowPriorityTasks, 
+    hasTasks, 
+    handleDragEnd,
+    isSaving
   } = useTaskPriorityDnd();
 
-  // If no tasks, show empty state
-  if (!hasTasks) {
-    return <TaskEmptyState hasTasksInStore={false} />;
-  }
-
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-8"
-    >
+    <div className="space-y-6">
       <DragDropContext onDragEnd={handleDragEnd}>
-        <TaskPriorityGroup
-          title="High Priority"
-          tasks={highPriorityTasks}
-          priority="high"
-          icon={<AlertCircle className="h-5 w-5 text-red-500" />}
-        />
-        
-        <TaskPriorityGroup
-          title="Medium Priority"
-          tasks={mediumPriorityTasks}
-          priority="medium"
-          icon={<CircleDot className="h-5 w-5 text-yellow-500" />}
-        />
-        
-        <TaskPriorityGroup
-          title="Low Priority"
-          tasks={lowPriorityTasks}
-          priority="low"
-          icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
-        />
+        <div className={`space-y-8 ${isSaving ? 'opacity-70' : ''}`}>
+          <TaskPriorityGroup
+            title="High Priority"
+            priority="high"
+            tasks={highPriorityTasks}
+            droppableId="priority-high"
+          />
+          
+          <TaskPriorityGroup
+            title="Medium Priority"
+            priority="medium"
+            tasks={mediumPriorityTasks}
+            droppableId="priority-medium"
+          />
+          
+          <TaskPriorityGroup
+            title="Low Priority"
+            priority="low"
+            tasks={lowPriorityTasks}
+            droppableId="priority-low"
+          />
+          
+          {!hasTasks && (
+            <div className="text-center p-8 border border-dashed rounded-lg bg-card text-muted-foreground">
+              No tasks found. Try adding a new task above.
+            </div>
+          )}
+        </div>
       </DragDropContext>
-    </motion.div>
+    </div>
   );
 };
 

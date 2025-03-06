@@ -7,6 +7,7 @@ import { useTaskStore } from "@/lib/store";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
 import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { saveTasksOrder } from "@/services/taskService";
 
 interface TaskListContainerProps {
   filteredTasks: Task[];
@@ -17,12 +18,13 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const { tasks: allTasks, reorderTasks } = useTaskStore();
   
   const [localFilteredTasks, setLocalFilteredTasks] = useState<Task[]>(filteredTasks);
+  const [isSaving, setIsSaving] = useState(false);
   
   useEffect(() => {
     setLocalFilteredTasks(filteredTasks);
   }, [filteredTasks]);
 
-  const handleDragEnd = useCallback((result: DropResult) => {
+  const handleDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     
     console.log("Drag end event:", { 
@@ -159,6 +161,13 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         return;
       }
       
+      // Build the reordered complete task list (not just IDs)
+      const reorderedTaskObjects = reorderedCompleteList.map(id => 
+        allTasks.find(t => t.id === id)
+      ).filter(Boolean) as Task[];
+      
+      console.log("Reordered task objects:", reorderedTaskObjects.map(t => t.title));
+      
       // Update the store (without waiting, but catch errors)
       reorderTasks(
         draggableId,
@@ -167,12 +176,27 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         reorderedCompleteList
       );
       
-      console.log("Reordering operation completed successfully");
+      // Save the updated order to Supabase
+      setIsSaving(true);
+      console.log("Saving reordered tasks to Supabase...");
+      
+      const saveSuccess = await saveTasksOrder(reorderedTaskObjects);
+      if (saveSuccess) {
+        console.log("Successfully saved task order to Supabase");
+        toast.success("Task order updated");
+      } else {
+        console.error("Failed to save task order to Supabase");
+        toast.error("Failed to save task order to database");
+      }
+      
+      setIsSaving(false);
+      console.log("Reordering operation completed");
     } catch (error) {
       console.error("Error during drag and drop:", error);
       // Revert the optimistic update
       console.log("Reverting to previous filtered tasks state");
       setLocalFilteredTasks(filteredTasks);
+      setIsSaving(false);
       toast.error("Failed to update task position. Please try again.");
     }
   }, [localFilteredTasks, filteredTasks, allTasks, reorderTasks]);
@@ -185,7 +209,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
             <div 
               className={`space-y-4 p-2 rounded-lg min-h-[100px] transition-colors ${
                 snapshot.isDraggingOver ? "bg-accent/20" : ""
-              }`}
+              } ${isSaving ? "opacity-70" : ""}`}
               ref={provided.innerRef}
               {...provided.droppableProps}
             >
