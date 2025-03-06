@@ -1,12 +1,13 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckSquare, PenSquare } from "lucide-react";
+import { CheckSquare, PenSquare, Sparkles } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import TaskList from "@/components/tasks/TaskList";
 import NoteList from "@/components/notes/NoteList";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { motion } from "framer-motion";
+import TestAiTaskParsing from "@/components/tests/TestAiTaskParsing";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("tasks");
@@ -38,7 +39,7 @@ const Index = () => {
               onValueChange={setActiveTab}
               className="w-full"
             >
-              <TabsList className="grid w-full grid-cols-2 mb-8">
+              <TabsList className="grid w-full grid-cols-3 mb-8">
                 <TabsTrigger value="tasks" className="flex items-center gap-2 py-3">
                   <CheckSquare className="h-4 w-4" />
                   <span>Tasks</span>
@@ -46,6 +47,10 @@ const Index = () => {
                 <TabsTrigger value="notes" className="flex items-center gap-2 py-3">
                   <PenSquare className="h-4 w-4" />
                   <span>Notes</span>
+                </TabsTrigger>
+                <TabsTrigger value="test-ai" className="flex items-center gap-2 py-3">
+                  <Sparkles className="h-4 w-4" />
+                  <span>Test AI</span>
                 </TabsTrigger>
               </TabsList>
               
@@ -55,6 +60,10 @@ const Index = () => {
               
               <TabsContent value="notes" className="mt-0">
                 <NoteList />
+              </TabsContent>
+              
+              <TabsContent value="test-ai" className="mt-0">
+                <TestAiTaskParsing />
               </TabsContent>
             </Tabs>
           </motion.div>

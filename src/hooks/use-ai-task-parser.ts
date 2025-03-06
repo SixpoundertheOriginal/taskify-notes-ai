@@ -22,9 +22,13 @@ export function useAiTaskParser() {
     setParsedTask(null);
     
     try {
+      console.log("Calling parse-task function with:", taskText);
+      
       const { data, error } = await supabase.functions.invoke("parse-task", {
         body: { taskText },
       });
+      
+      console.log("Response from parse-task function:", { data, error });
       
       if (error) {
         console.error("Error parsing task:", error);
@@ -42,6 +46,7 @@ export function useAiTaskParser() {
         dueDate: data.dueDate || null
       };
       
+      console.log("Parsed task data:", parsedData);
       setParsedTask(parsedData);
       return parsedData;
     } catch (err) {
