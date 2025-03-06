@@ -1,9 +1,10 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Trash, Edit, XCircle, Save, Clock } from "lucide-react";
 import { Note } from "@/lib/types";
-import { useNoteStore } from "@/lib/store";
+import { useNoteStore } from "@/lib/stores/noteStore";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";

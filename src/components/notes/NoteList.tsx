@@ -1,6 +1,7 @@
+
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useNoteStore } from "@/lib/store";
+import { useNoteStore } from "@/lib/stores/noteStore";
 import NoteCard from "./NoteCard";
 import NoteForm from "./NoteForm";
 import { Input } from "@/components/ui/input";
