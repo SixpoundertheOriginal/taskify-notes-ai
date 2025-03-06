@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, ArrowDown, CircleDot } from "lucide-react";
 import TaskEmptyState from "./TaskEmptyState";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
 
 interface TaskPriorityGroupProps {
@@ -15,12 +15,9 @@ interface TaskPriorityGroupProps {
   tasks: Task[];
   priority: Priority;
   icon: React.ReactNode;
-  onDragEnd: (result: DropResult) => void;
 }
 
-const TaskPriorityGroup = ({ title, tasks, priority, icon, onDragEnd }: TaskPriorityGroupProps) => {
-  if (tasks.length === 0) return null;
-
+const TaskPriorityGroup = ({ title, tasks, priority, icon }: TaskPriorityGroupProps) => {
   return (
     <div className="mb-8">
       <div className="flex items-center gap-2 mb-4">
@@ -39,27 +36,33 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, onDragEnd }: TaskPrio
             ref={provided.innerRef}
             {...provided.droppableProps}
           >
-            <AnimatePresence mode="sync">
-              {tasks.map((task, index) => (
-                <Draggable key={task.id} draggableId={task.id} index={index}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      className={`mb-4 transition-opacity ${
-                        snapshot.isDragging ? "opacity-80" : ""
-                      }`}
-                      style={{
-                        ...provided.draggableProps.style,
-                      }}
-                    >
-                      <TaskCard key={task.id} task={task} />
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-            </AnimatePresence>
+            {tasks.length > 0 ? (
+              <AnimatePresence mode="sync">
+                {tasks.map((task, index) => (
+                  <Draggable key={task.id} draggableId={task.id} index={index}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        {...provided.dragHandleProps}
+                        className={`mb-4 transition-opacity ${
+                          snapshot.isDragging ? "opacity-80" : ""
+                        }`}
+                        style={{
+                          ...provided.draggableProps.style,
+                        }}
+                      >
+                        <TaskCard key={task.id} task={task} />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+              </AnimatePresence>
+            ) : (
+              <div className="text-center py-2 px-4 text-sm text-muted-foreground border border-dashed border-muted-foreground/20 rounded-md">
+                Drop tasks here
+              </div>
+            )}
             {provided.placeholder}
           </div>
         )}
@@ -74,17 +77,15 @@ const TaskPriorityGroupView = () => {
   // Add local state to track optimistic UI updates
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
   
+  // Update local tasks when store tasks change
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+  
   // Group tasks by priority - now using localTasks for rendering
   const highPriorityTasks = localTasks.filter(task => task.priority === "high");
   const mediumPriorityTasks = localTasks.filter(task => task.priority === "medium");
   const lowPriorityTasks = localTasks.filter(task => task.priority === "low");
-  
-  // Update local tasks when store tasks change
-  // This effect ensures our local state is up-to-date with the store
-  // outside of drag/drop operations
-  useCallback(() => {
-    setLocalTasks(tasks);
-  }, [tasks]);
   
   // Check if there are any tasks
   const hasTasks = localTasks.length > 0;
@@ -101,9 +102,9 @@ const TaskPriorityGroupView = () => {
       destinationIndex: destination?.index
     });
     
-    // If there's no destination, return
+    // If there's no destination (dropped outside droppable area), return
     if (!destination) {
-      console.log("Drop canceled - no destination");
+      console.log("Drop canceled - no destination or dropped outside droppable area");
       return;
     }
     
@@ -116,6 +117,11 @@ const TaskPriorityGroupView = () => {
     // Extract priority information from droppableIds
     const sourcePriorityString = source.droppableId.split('-')[1] as Priority;
     const destPriorityString = destination.droppableId.split('-')[1] as Priority;
+    
+    if (!sourcePriorityString || !destPriorityString) {
+      console.error("Invalid droppable IDs. Source:", source.droppableId, "Destination:", destination.droppableId);
+      return;
+    }
     
     console.log("Source priority:", sourcePriorityString);
     console.log("Destination priority:", destPriorityString);
@@ -154,6 +160,11 @@ const TaskPriorityGroupView = () => {
         
         // Remove the task from its current position
         const [removedTask] = updatedTasksInPriority.splice(source.index, 1);
+        if (!removedTask) {
+          console.error("Could not find task at source index:", source.index);
+          return;
+        }
+        
         console.log("Removed task:", { id: removedTask.id, title: removedTask.title });
         
         // Insert the task at its new position
@@ -251,7 +262,6 @@ const TaskPriorityGroupView = () => {
           tasks={highPriorityTasks}
           priority="high"
           icon={<AlertCircle className="h-5 w-5 text-red-500" />}
-          onDragEnd={handleDragEnd}
         />
         
         <TaskPriorityGroup
@@ -259,7 +269,6 @@ const TaskPriorityGroupView = () => {
           tasks={mediumPriorityTasks}
           priority="medium"
           icon={<CircleDot className="h-5 w-5 text-yellow-500" />}
-          onDragEnd={handleDragEnd}
         />
         
         <TaskPriorityGroup
@@ -267,7 +276,6 @@ const TaskPriorityGroupView = () => {
           tasks={lowPriorityTasks}
           priority="low"
           icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
-          onDragEnd={handleDragEnd}
         />
       </DragDropContext>
     </motion.div>

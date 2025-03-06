@@ -33,10 +33,16 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       destinationDroppableId: destination?.droppableId
     });
     
-    if (!destination || 
-        (destination.droppableId === source.droppableId && 
-         destination.index === source.index)) {
-      console.log("Drop canceled or dropped in same position");
+    // If there's no destination (dropped outside droppable area) or
+    // dropped in the same position, do nothing
+    if (!destination) {
+      console.log("Drop canceled - no destination or dropped outside droppable area");
+      return;
+    }
+    
+    if (destination.droppableId === source.droppableId && 
+        destination.index === source.index) {
+      console.log("Dropped in same position - no action needed");
       return;
     }
     
@@ -45,15 +51,24 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       console.log("Local filtered tasks before reordering:", 
         localFilteredTasks.map(t => ({ id: t.id, title: t.title })));
       
+      // Create a new copy of the filtered tasks for the optimistic update
       const newLocalFilteredTasks = [...localFilteredTasks];
       
+      // Find the task being moved
       const [removedTask] = newLocalFilteredTasks.splice(source.index, 1);
+      if (!removedTask) {
+        console.error("Could not find task at source index:", source.index);
+        return;
+      }
+      
       console.log("Removed task:", { id: removedTask.id, title: removedTask.title });
       
+      // Insert the task at the destination
       newLocalFilteredTasks.splice(destination.index, 0, removedTask);
       console.log("Local filtered tasks after reordering:", 
         newLocalFilteredTasks.map(t => ({ id: t.id, title: t.title })));
       
+      // Update local state immediately (optimistic update)
       setLocalFilteredTasks(newLocalFilteredTasks);
       
       // Map task IDs to their indices in the full task list
@@ -104,6 +119,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       
       console.log("Final reordered complete list:", reorderedCompleteList);
       
+      // Update the store (without waiting, but catch errors)
       reorderTasks(
         draggableId,
         source.index,
@@ -114,6 +130,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       console.log("Reordering operation completed successfully");
     } catch (error) {
       console.error("Error during drag and drop:", error);
+      // Revert the optimistic update
       console.log("Reverting to previous filtered tasks state");
       setLocalFilteredTasks(filteredTasks);
       toast.error("Failed to update task position. Please try again.");
@@ -122,17 +139,17 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
 
   return (
     <div className="space-y-4">
-      {localFilteredTasks.length > 0 ? (
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="tasks-list">
-            {(provided, snapshot) => (
-              <div 
-                className={`space-y-4 p-2 rounded-lg min-h-[100px] transition-colors ${
-                  snapshot.isDraggingOver ? "bg-accent/20" : ""
-                }`}
-                ref={provided.innerRef}
-                {...provided.droppableProps}
-              >
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="tasks-list">
+          {(provided, snapshot) => (
+            <div 
+              className={`space-y-4 p-2 rounded-lg min-h-[100px] transition-colors ${
+                snapshot.isDraggingOver ? "bg-accent/20" : ""
+              }`}
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+            >
+              {localFilteredTasks.length > 0 ? (
                 <AnimatePresence mode="sync">
                   {localFilteredTasks.map((task, index) => (
                     <Draggable key={task.id} draggableId={task.id} index={index}>
@@ -154,14 +171,14 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
                     </Draggable>
                   ))}
                 </AnimatePresence>
-                {provided.placeholder}
-              </div>
-            )}
-          </Droppable>
-        </DragDropContext>
-      ) : (
-        <TaskEmptyState hasTasksInStore={totalTasksCount > 0} />
-      )}
+              ) : (
+                <TaskEmptyState hasTasksInStore={totalTasksCount > 0} />
+              )}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
     </div>
   );
 };
