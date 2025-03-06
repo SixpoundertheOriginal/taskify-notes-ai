@@ -115,7 +115,10 @@ export const saveTasksOrder = async (tasks: Task[]): Promise<boolean> => {
     // Update all tasks with new positions in a batch operation
     const { data, error } = await supabase
       .from('tasks')
-      .upsert(taskUpdates, { onConflict: 'id' });
+      .upsert(taskUpdates, { 
+        onConflict: 'id',
+        ignoreDuplicates: false
+      });
       
     if (error) {
       console.error("Error saving task order:", error);

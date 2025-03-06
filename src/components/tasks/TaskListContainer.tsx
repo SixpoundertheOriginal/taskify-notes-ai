@@ -5,7 +5,7 @@ import TaskCard from "./TaskCard";
 import TaskEmptyState from "./TaskEmptyState";
 import { useTaskStore } from "@/lib/store";
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { saveTasksOrder } from "@/services/taskService";
 
@@ -20,9 +20,15 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
   const [localFilteredTasks, setLocalFilteredTasks] = useState<Task[]>(filteredTasks);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Add ref to hold pending tasks before committing
+  const pendingTasksRef = useRef<Task[] | null>(null);
+  
   useEffect(() => {
-    setLocalFilteredTasks(filteredTasks);
-  }, [filteredTasks]);
+    // Only update if not in the middle of a drag operation
+    if (!isSaving && !pendingTasksRef.current) {
+      setLocalFilteredTasks(filteredTasks);
+    }
+  }, [filteredTasks, isSaving]);
 
   const handleDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
@@ -39,12 +45,14 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
     // dropped in the same position, do nothing
     if (!destination) {
       console.log("Drop canceled - no destination or dropped outside droppable area");
+      pendingTasksRef.current = null;
       return;
     }
     
     if (destination.droppableId === source.droppableId && 
         destination.index === source.index) {
       console.log("Dropped in same position - no action needed");
+      pendingTasksRef.current = null;
       return;
     }
     
@@ -60,6 +68,7 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       const [removedTask] = newLocalFilteredTasks.splice(source.index, 1);
       if (!removedTask) {
         console.error("Could not find task at source index:", source.index);
+        pendingTasksRef.current = null;
         return;
       }
       
@@ -76,8 +85,15 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         console.error("Error: Task not correctly positioned after reordering. Expected", 
           removedTask.id, "but found", taskAtDestination.id);
         toast.error("Error during task reordering. Please try again.");
+        pendingTasksRef.current = null;
         return;
       }
+      
+      // Store the pending tasks in the ref BEFORE updating the UI
+      pendingTasksRef.current = newLocalFilteredTasks;
+      
+      // Set saving state to prevent further updates
+      setIsSaving(true);
       
       // Update local state immediately (optimistic update)
       setLocalFilteredTasks(newLocalFilteredTasks);
@@ -158,6 +174,8 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
         // Try to recover by using the original list
         toast.error("Error in reordering. Using original task order.");
         setLocalFilteredTasks(filteredTasks);
+        pendingTasksRef.current = null;
+        setIsSaving(false);
         return;
       }
       
@@ -177,7 +195,6 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       );
       
       // Save the updated order to Supabase
-      setIsSaving(true);
       console.log("Saving reordered tasks to Supabase...");
       
       const saveSuccess = await saveTasksOrder(reorderedTaskObjects);
@@ -187,17 +204,23 @@ const TaskListContainer = ({ filteredTasks, totalTasksCount }: TaskListContainer
       } else {
         console.error("Failed to save task order to Supabase");
         toast.error("Failed to save task order to database");
+        // Revert the optimistic update on failure
+        setLocalFilteredTasks(filteredTasks);
       }
       
-      setIsSaving(false);
       console.log("Reordering operation completed");
     } catch (error) {
       console.error("Error during drag and drop:", error);
       // Revert the optimistic update
       console.log("Reverting to previous filtered tasks state");
       setLocalFilteredTasks(filteredTasks);
-      setIsSaving(false);
       toast.error("Failed to update task position. Please try again.");
+    } finally {
+      // Clear pending tasks after the operation is complete
+      setTimeout(() => {
+        pendingTasksRef.current = null;
+        setIsSaving(false);
+      }, 0);
     }
   }, [localFilteredTasks, filteredTasks, allTasks, reorderTasks]);
 

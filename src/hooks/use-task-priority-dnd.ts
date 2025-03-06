@@ -1,5 +1,5 @@
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { DropResult } from "react-beautiful-dnd";
 import { Task, Priority } from "@/lib/types";
 import { toast } from "sonner";
@@ -13,10 +13,15 @@ export const useTaskPriorityDnd = () => {
   const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Update local tasks when store tasks change
+  // Add ref to hold the pending task order before committing to prevent re-render issues
+  const pendingTasksRef = useRef<Task[] | null>(null);
+  
+  // Update local tasks when store tasks change, but only if not in the middle of a drag operation
   useEffect(() => {
-    setLocalTasks(tasks);
-  }, [tasks]);
+    if (!isSaving && !pendingTasksRef.current) {
+      setLocalTasks(tasks);
+    }
+  }, [tasks, isSaving]);
   
   // Handle drag and drop operations with optimistic updates
   const handleDragEnd = useCallback(async (result: DropResult) => {
@@ -33,12 +38,14 @@ export const useTaskPriorityDnd = () => {
     // If there's no destination (dropped outside droppable area), return
     if (!destination) {
       console.log("Drop canceled - no destination or dropped outside droppable area");
+      pendingTasksRef.current = null;
       return;
     }
     
     // If dropping in the same position, do nothing
     if (source.droppableId === destination.droppableId && source.index === destination.index) {
       console.log("Dropped in the same position - no action needed");
+      pendingTasksRef.current = null;
       return;
     }
     
@@ -48,6 +55,7 @@ export const useTaskPriorityDnd = () => {
     
     if (!sourcePriorityString || !destPriorityString) {
       console.error("Invalid droppable IDs. Source:", source.droppableId, "Destination:", destination.droppableId);
+      pendingTasksRef.current = null;
       return;
     }
     
@@ -58,6 +66,7 @@ export const useTaskPriorityDnd = () => {
     const draggedTask = localTasks.find(task => task.id === draggableId);
     if (!draggedTask) {
       console.error("Could not find task with ID:", draggableId);
+      pendingTasksRef.current = null;
       return;
     }
     
@@ -96,6 +105,7 @@ export const useTaskPriorityDnd = () => {
         if (!removedTask) {
           console.error("Could not find task at source index:", source.index);
           setIsSaving(false);
+          pendingTasksRef.current = null;
           return;
         }
         
@@ -124,6 +134,7 @@ export const useTaskPriorityDnd = () => {
             removedTask.id, "but found", taskAtDestination.id);
           toast.error("Error during task reordering. Please try again.");
           setIsSaving(false);
+          pendingTasksRef.current = null;
           return;
         }
         
@@ -148,8 +159,12 @@ export const useTaskPriorityDnd = () => {
             {original: newLocalTasks.length, reordered: updatedTasks.length});
           toast.error("Error in reordering. Please try again.");
           setIsSaving(false);
+          pendingTasksRef.current = null;
           return;
         }
+        
+        // Store the pending tasks in the ref BEFORE updating the UI
+        pendingTasksRef.current = updatedTasks;
         
         // Update local state immediately
         setLocalTasks(updatedTasks);
@@ -176,19 +191,23 @@ export const useTaskPriorityDnd = () => {
         if (saveSuccess) {
           console.log("Successfully saved task order to Supabase");
           toast.success("Task order updated");
+          
+          // Update the store (in background)
+          reorderTasksInPriorityGroup(
+            draggableId,
+            sourcePriorityString,
+            source.index,
+            destination.index,
+            newTaskIds
+          );
         } else {
           console.error("Failed to save task order to Supabase");
           toast.error("Failed to save task order to database");
+          
+          // Revert to original tasks on failure
+          pendingTasksRef.current = null;
+          setLocalTasks(tasks);
         }
-        
-        // Update the store (in background)
-        reorderTasksInPriorityGroup(
-          draggableId,
-          sourcePriorityString,
-          source.index,
-          destination.index,
-          newTaskIds
-        );
         
         console.log("Reordering within priority group completed");
       } else {
@@ -226,6 +245,7 @@ export const useTaskPriorityDnd = () => {
           });
           toast.error("Error updating task priority. Please try again.");
           setIsSaving(false);
+          pendingTasksRef.current = null;
           return;
         }
         
@@ -235,6 +255,7 @@ export const useTaskPriorityDnd = () => {
             {original: newLocalTasks.length, updated: updatedTasks.length});
           toast.error("Error in updating priority. Please try again.");
           setIsSaving(false);
+          pendingTasksRef.current = null;
           return;
         }
         
@@ -273,6 +294,9 @@ export const useTaskPriorityDnd = () => {
         console.log("Final sorted tasks after cross-priority move:", 
           finalSortedTasks.map(t => ({ id: t.id, title: t.title, priority: t.priority })));
         
+        // Store the pending tasks in the ref BEFORE updating the UI
+        pendingTasksRef.current = finalSortedTasks;
+        
         // Update local state immediately
         setLocalTasks(finalSortedTasks);
         
@@ -283,43 +307,52 @@ export const useTaskPriorityDnd = () => {
         if (saveSuccess) {
           console.log("Successfully saved task order to Supabase");
           toast.success("Task order updated");
+          
+          // Group tasks by priority after the update for logging
+          const finalHighPriorityTasks = finalSortedTasks.filter(task => task.priority === "high");
+          const finalMediumPriorityTasks = finalSortedTasks.filter(task => task.priority === "medium");
+          const finalLowPriorityTasks = finalSortedTasks.filter(task => task.priority === "low");
+          
+          console.log("Final task counts by priority:", {
+            high: finalHighPriorityTasks.length,
+            medium: finalMediumPriorityTasks.length,
+            low: finalLowPriorityTasks.length,
+            total: finalSortedTasks.length
+          });
+          
+          // Update the store (in background)
+          moveTaskBetweenLists(
+            draggableId,
+            sourcePriorityString,
+            destPriorityString,
+            source.index,
+            destination.index
+          );
         } else {
           console.error("Failed to save task order to Supabase");
           toast.error("Failed to save task order to database");
+          
+          // Revert to original tasks on failure
+          pendingTasksRef.current = null;
+          setLocalTasks(tasks);
         }
-        
-        // Group tasks by priority after the update for logging
-        const finalHighPriorityTasks = finalSortedTasks.filter(task => task.priority === "high");
-        const finalMediumPriorityTasks = finalSortedTasks.filter(task => task.priority === "medium");
-        const finalLowPriorityTasks = finalSortedTasks.filter(task => task.priority === "low");
-        
-        console.log("Final task counts by priority:", {
-          high: finalHighPriorityTasks.length,
-          medium: finalMediumPriorityTasks.length,
-          low: finalLowPriorityTasks.length,
-          total: finalSortedTasks.length
-        });
-        
-        // Update the store (in background)
-        moveTaskBetweenLists(
-          draggableId,
-          sourcePriorityString,
-          destPriorityString,
-          source.index,
-          destination.index
-        );
         
         console.log("Cross-list movement completed");
       }
     } catch (error) {
       // If an error occurs, revert to the previous state
       console.error("Error during drag and drop:", error);
+      pendingTasksRef.current = null;
       setLocalTasks(tasks); // Revert to the store state
       
       // Show error notification
       toast.error("Failed to update task position. Please try again.");
     } finally {
-      setIsSaving(false);
+      // Only clear the pending tasks after the operation is fully completed
+      setTimeout(() => {
+        pendingTasksRef.current = null;
+        setIsSaving(false);
+      }, 0);
     }
   }, [localTasks, tasks, reorderTasksInPriorityGroup, moveTaskBetweenLists]);
 
