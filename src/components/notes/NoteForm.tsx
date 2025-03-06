@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,12 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
-import { useTaskStore } from "@/lib/store";
+import { useNoteStore } from "@/lib/store";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 const NoteForm = () => {
-  const { addNote } = useTaskStore();
+  const { addNote } = useNoteStore();
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");

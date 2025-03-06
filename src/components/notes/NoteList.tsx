@@ -1,7 +1,6 @@
-
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useTaskStore } from "@/lib/store";
+import { useNoteStore } from "@/lib/store";
 import NoteCard from "./NoteCard";
 import NoteForm from "./NoteForm";
 import { Input } from "@/components/ui/input";
@@ -12,7 +11,7 @@ import { Note } from "@/lib/types";
 type SortOption = "newest" | "oldest" | "alphabetical";
 
 const NoteList = () => {
-  const { notes } = useTaskStore();
+  const { notes } = useNoteStore();
   const [filteredNotes, setFilteredNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
