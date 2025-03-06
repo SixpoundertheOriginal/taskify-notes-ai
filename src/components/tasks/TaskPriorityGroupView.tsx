@@ -29,10 +29,10 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
         <span className="text-muted-foreground ml-2">({tasks.length})</span>
       </div>
       
-      <Droppable droppableId={droppableId}>
+      <Droppable droppableId={droppableId} type="TASK">
         {(provided, snapshot) => (
           <div 
-            className={`space-y-4 p-2 rounded-lg transition-colors ${
+            className={`space-y-4 p-2 rounded-lg transition-colors min-h-[50px] ${
               snapshot.isDraggingOver ? 'bg-accent/30' : ''
             }`}
             ref={provided.innerRef}
@@ -44,7 +44,7 @@ const TaskPriorityGroup = ({ title, tasks, priority, icon, droppableId }: TaskPr
                   <div
                     ref={provided.innerRef}
                     {...provided.draggableProps}
-                    className={`${snapshot.isDragging ? "opacity-80" : ""}`}
+                    className={`transition-all ${snapshot.isDragging ? "opacity-80 scale-105" : ""}`}
                   >
                     <div className="flex items-start">
                       <div 
@@ -83,14 +83,23 @@ const TaskPriorityGroupView = () => {
   const handleDragEnd = (result: DropResult) => {
     const { source, destination } = result;
     
+    // Log drag operation for debugging
+    console.log("Drag operation result:", result);
+    
     // Dropped outside the list
-    if (!destination) return;
+    if (!destination) {
+      console.log("No destination");
+      return;
+    }
     
     // Same position
     if (
       source.droppableId === destination.droppableId &&
       source.index === destination.index
-    ) return;
+    ) {
+      console.log("Same position, no change needed");
+      return;
+    }
 
     // Map droppableId to priority
     const priorityMap: Record<string, Priority> = {
@@ -111,33 +120,45 @@ const TaskPriorityGroupView = () => {
     }
 
     if (taskToMove) {
+      console.log("Task to move:", taskToMove);
+      
       // If moved to a different priority group, update its priority
       if (source.droppableId !== destination.droppableId) {
         const newPriority = priorityMap[destination.droppableId];
         updateTaskPriority(taskToMove.id, newPriority);
         
-        toast.success(`Task moved to ${newPriority} priority`);
+        toast.success(`"${taskToMove.title}" moved to ${newPriority} priority`);
+        console.log(`Priority updated to ${newPriority}`);
       }
+    } else {
+      console.error("Task not found:", source);
     }
   };
 
+  // If no tasks, show empty state
+  if (!hasTasks) {
+    return <TaskEmptyState hasTasksInStore={false} />;
+  }
+
   return (
-    <div>
-      {hasTasks ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <TaskPriorityGroup
-              title="High Priority"
-              tasks={highPriorityTasks}
-              priority="high"
-              droppableId="high-priority"
-              icon={<AlertCircle className="h-5 w-5 text-red-500" />}
-            />
-            
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-8"
+    >
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <TaskPriorityGroup
+          title="High Priority"
+          tasks={highPriorityTasks}
+          priority="high"
+          droppableId="high-priority"
+          icon={<AlertCircle className="h-5 w-5 text-red-500" />}
+        />
+        
+        {/* Even if there are no medium priority tasks, we should still render the droppable area */}
+        {highPriorityTasks.length === 0 && mediumPriorityTasks.length === 0 && lowPriorityTasks.length === 0 ? null : (
+          <>
             <TaskPriorityGroup
               title="Medium Priority"
               tasks={mediumPriorityTasks}
@@ -153,12 +174,10 @@ const TaskPriorityGroupView = () => {
               droppableId="low-priority"
               icon={<ArrowDown className="h-5 w-5 text-blue-500" />}
             />
-          </DragDropContext>
-        </motion.div>
-      ) : (
-        <TaskEmptyState hasTasksInStore={false} />
-      )}
-    </div>
+          </>
+        )}
+      </DragDropContext>
+    </motion.div>
   );
 };
 
